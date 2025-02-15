@@ -1,0 +1,40 @@
+# values.yaml
+replicaCount: 3
+namespace: usersignin
+
+image:
+  repository: gcr.io/PROJECT_ID/django-signin
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: "gce"
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "django-signin-ip"
+    networking.gke.io/managed-certificates: "django-signin-cert"
+  hosts:
+    - host: signin.example.com
+      paths:
+        - path: /*
+          pathType: ImplementationSpecific
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 512Mi
+
+alloydb:
+  host: "alloydb-instance"
+  port: "5432"
+  database: "signindb"
+  user: "django"
