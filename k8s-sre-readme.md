@@ -11,6 +11,7 @@ A comprehensive guide for implementing Site Reliability Engineering (SRE) practi
 - [Storage Management](#storage-management)
 - [Monitoring & Observability](#monitoring--observability)
 - [Best Practices](#best-practices)
+- [12-Factor App Design Principles in Kubernetes SRE Strategy](#12-factor-app-design-principles-in-kubernetes-sre-strategy)
 - [Contributing](#contributing)
 
 ## Overview
