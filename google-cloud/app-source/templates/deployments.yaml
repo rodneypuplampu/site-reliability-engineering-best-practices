@@ -1,0 +1,60 @@
+# templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-django
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: django-signin
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: django-signin
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: django-signin
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: django
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DB_HOST
+              value: {{ .Values.alloydb.host }}
+            - name: DB_PORT
+              value: {{ .Values.alloydb.port | quote }}
+            - name: DB_NAME
+              value: {{ .Values.alloydb.database }}
+            - name: DB_USER
+              value: {{ .Values.alloydb.user }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: alloydb-credentials
+                  key: password
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: django-secrets
+                  key: secret-key
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
