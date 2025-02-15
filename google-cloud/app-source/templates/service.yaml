@@ -1,0 +1,18 @@
+# templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-django
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: django-signin
+    release: {{ .Release.Name }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+  selector:
+    app: django-signin
+    release: {{ .Release.Name }}
