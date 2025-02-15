@@ -1,0 +1,6 @@
+# Chart.yaml
+apiVersion: v2
+name: django-signin
+description: A Helm chart for Django Signin Application
+version: 0.1.0
+appVersion: "1.0.0"
