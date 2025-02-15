@@ -1,0 +1,10 @@
+# templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-django-config
+  namespace: {{ .Values.namespace }}
+data:
+  DJANGO_SETTINGS_MODULE: "signin.settings"
+  ALLOWED_HOSTS: "*"
+  DEBUG: "False"
