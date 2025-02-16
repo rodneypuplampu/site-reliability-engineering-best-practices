@@ -1,4 +1,4 @@
-# Cloud-Native User Portal Deployment
+# Oracle SRE Example User Portal Deployment
 
 This repository contains the deployment configuration for a cloud-native user portal application using Oracle Cloud Infrastructure (OCI), Oracle Kubernetes Engine (OKE), and Oracle Cloud Content Delivery Network (CDN).
 
