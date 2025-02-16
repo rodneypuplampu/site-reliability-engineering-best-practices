@@ -1,4 +1,4 @@
-# Kubernetes SRE Strategy Framework
+# Google Kubernetes SRE Strategy Framework User Portal Deployment
 
 A comprehensive guide for implementing Site Reliability Engineering (SRE) practices in Kubernetes environments.
 
