@@ -1,4 +1,4 @@
-# HPE Cloud User Portal Deployment
+# HPE SRE Example Cloud User Portal Deployment
 
 This repository contains the Kubernetes configurations and deployment instructions for the User Portal application, featuring a Django backend, PostgreSQL database, and frontend served through HPE Cloud CDN.
 
