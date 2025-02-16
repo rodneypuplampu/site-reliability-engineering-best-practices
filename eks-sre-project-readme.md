@@ -1,4 +1,4 @@
-# Cloud-Native User Portal Project
+# AWS SRE Example Userportal App
 
 This project implements a scalable user portal application using AWS Cloud CDN for frontend delivery, PostgreSQL with StatefulSet for persistent storage, and a containerized Django backend running on Amazon EKS (Elastic Kubernetes Service).
 
