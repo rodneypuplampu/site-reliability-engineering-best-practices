@@ -1,4 +1,4 @@
-# Cloud-Native User Portal Application
+# Azure SRE Example Userportal App
 
 This repository contains the infrastructure and application code for a cloud-native user portal application deployed on AWS EKS with Azure CDN for frontend content delivery and PostgreSQL StatefulSet for persistent storage.
 
