@@ -1,22 +1,3 @@
-# Project Structure
-.
-├── README.md
-├── terraform/
-│   ├── main.tf
-│   ├── variables.tf
-│   ├── outputs.tf
-│   └── provider.tf
-├── kubernetes/
-│   ├── cloud-router.yaml
-│   └── bgp-config.yaml
-├── scripts/
-│   ├── install.sh
-│   └── validate.sh
-└── docs/
-    ├── setup.md
-    └── troubleshooting.md
-
-# README.md
 # Anthos Bare Metal Cloud Router
 
 This repository contains the infrastructure code to deploy an Anthos bare metal cloud router for BGP routing between AWS and Google Cloud Platform.
