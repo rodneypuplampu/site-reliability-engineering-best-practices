@@ -1,4 +1,4 @@
-# 🦜️🔗 LangChain
+# 🦜️🔗 Agentic Automation of DevOps Pipelines and SRE Strategies Best Practices
 
 ⚡ Build context-aware reasoning applications ⚡
 
@@ -32,7 +32,7 @@ With conda:
 conda install langchain -c conda-forge
 ```
 
-## 🤔 What is LangChain?
+## 🤔 What is LangChain and LangGraph and how can agents help implement devops with SRE best practices?
 
 **LangChain** is a framework for developing applications powered by large language models (LLMs).
 
