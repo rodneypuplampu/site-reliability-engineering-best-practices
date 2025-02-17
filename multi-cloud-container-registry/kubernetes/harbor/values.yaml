@@ -1,0 +1,27 @@
+# kubernetes/harbor/values.yaml
+expose:
+  type: ingress
+  tls:
+    enabled: true
+    certSource: secret
+    secret:
+      secretName: harbor-tls
+
+externalURL: https://${var.harbor_domain}
+
+persistence:
+  enabled: true
+  persistentVolumeClaim:
+    registry:
+      size: 100Gi
+    chartmuseum:
+      size: 50Gi
+    jobservice:
+      size: 20Gi
+
+harborAdminPassword: ${var.admin_password}
+
+database:
+  type: internal
+  internal:
+    password: ${var.db_password}
