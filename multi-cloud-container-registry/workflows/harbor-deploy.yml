@@ -1,0 +1,33 @@
+# .github/workflows/harbor-deploy.yml
+name: Deploy Harbor
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'kubernetes/harbor/**'
+      - '.github/workflows/harbor-deploy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.9.0
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: v1.25.0
+
+      - name: Deploy Harbor
+        run: |
+          helm repo add harbor https://helm.goharbor.io
+          helm upgrade --install harbor harbor/harbor \
+            --namespace harbor \
+            --create-namespace \
+            -f kubernetes/harbor/values.yaml
