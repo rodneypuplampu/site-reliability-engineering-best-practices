@@ -1,4 +1,4 @@
-# 🦜️🔗 Agentic Automation of DevOps Pipelines and SRE Strategies Best Practices
+# 🔗 Agentic Automation of DevOps Pipelines and SRE Strategies Best Practices
 
 ⚡ Build context-aware reasoning applications ⚡
 
