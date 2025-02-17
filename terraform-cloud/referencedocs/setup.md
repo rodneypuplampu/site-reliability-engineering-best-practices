@@ -1,4 +1,3 @@
-# docs/setup.md
 # Setup Guide
 
 ## Initial Configuration
