@@ -10,7 +10,8 @@ A comprehensive guide for implementing Amazon Connect contact center with advanc
 5. [Contact Flows](#contact-flows)
 6. [CRM Integration to Salesforce](#crm-integration)
 7. [Analytics and Insights to Splunk](#analytics-and-insights)
-8. [Monitoring Setup to Splunk](#monitoring-setup)
+8. [Monitoring Setup](#monitoring-setup)
+9. [Splunk Integration for cdr and ccp logs]()
 
 ## Instance Setup
 
