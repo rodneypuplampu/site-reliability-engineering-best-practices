@@ -8,9 +8,9 @@ A comprehensive guide for implementing Amazon Connect contact center with advanc
 3. [Queue Management](#queue-management)
 4. [Agent Configuration](#agent-configuration)
 5. [Contact Flows](#contact-flows)
-6. [CRM Integration](#crm-integration)
-7. [Analytics and Insights](#analytics-and-insights)
-8. [Monitoring Setup](#monitoring-setup)
+6. [CRM Integration to Salesforce](#crm-integration)
+7. [Analytics and Insights to Splunk](#analytics-and-insights)
+8. [Monitoring Setup to Splunk](#monitoring-setup)
 
 ## Instance Setup
 
@@ -263,9 +263,221 @@ Common Issues:
    - Check resource utilization
    - Analyze error logs
 
+## Splunk Integration
+
+### Overview
+Configure Amazon Connect to forward Contact Detail Records (CDR) and Contact Control Panel (CCP) data to Splunk for advanced logging and analysis.
+
+### Architecture
+```mermaid
+graph LR
+    A[Amazon Connect] --> B[Kinesis Firehose]
+    B --> C[Splunk HTTP Event Collector]
+    A --> D[CloudWatch Logs]
+    D --> B
+    B --> E[S3 Backup]
+```
+
+### Kinesis Firehose Configuration
+```hcl
+resource "aws_kinesis_firehose_delivery_stream" "splunk_stream" {
+  name        = "connect-to-splunk"
+  destination = "http_endpoint"
+
+  http_endpoint_configuration {
+    url                = var.splunk_hec_url
+    name              = "Splunk"
+    access_key        = var.splunk_hec_token
+    buffering_size    = 5
+    buffering_interval = 300
+    retry_duration    = 300
+    
+    request_configuration {
+      content_encoding = "GZIP"
+    }
+
+    s3_backup_mode = "FailedDataOnly"
+  }
+
+  s3_configuration {
+    role_arn   = aws_iam_role.firehose_role.arn
+    bucket_arn = aws_s3_bucket.backup_bucket.arn
+    prefix     = "connect/failed-events/"
+  }
+}
+```
+
+### Contact Trace Records (CTR) Configuration
+```hcl
+resource "aws_connect_instance_storage_config" "ctr_config" {
+  instance_id   = var.connect_instance_id
+  resource_type = "CONTACT_TRACE_RECORDS"
+  
+  storage_config {
+    storage_type = "KINESIS_FIREHOSE"
+    kinesis_firehose_config {
+      firehose_arn = aws_kinesis_firehose_delivery_stream.splunk_stream.arn
+    }
+  }
+}
+```
+
+### CCP Logging Configuration
+```hcl
+resource "aws_cloudwatch_log_group" "ccp_logs" {
+  name              = "/aws/connect/${var.connect_instance_id}/ccp"
+  retention_in_days = 30
+}
+
+resource "aws_cloudwatch_log_subscription_filter" "ccp_to_firehose" {
+  name            = "ccp-to-splunk"
+  log_group_name  = aws_cloudwatch_log_group.ccp_logs.name
+  filter_pattern  = ""
+  destination_arn = aws_kinesis_firehose_delivery_stream.splunk_stream.arn
+  role_arn        = aws_iam_role.cloudwatch_to_firehose.arn
+}
+```
+
+### Splunk HEC Setup
+1. Create HEC Token:
+   ```bash
+   curl -X POST https://your-splunk-instance:8088/services/collector/token \
+     -H "Authorization: Bearer your-admin-token" \
+     -d '{"name": "connect-hec", "index": "connect_logs"}'
+   ```
+
+2. Configure HEC Settings:
+   ```bash
+   curl -X POST https://your-splunk-instance:8088/services/collector/settings \
+     -H "Authorization: Bearer your-admin-token" \
+     -d '{"enableSSL": true, "disabled": false}'
+   ```
+
+### Data Types Logged
+
+1. Contact Detail Records
+   - Contact ID
+   - Agent Information
+   - Queue Details
+   - Duration Metrics
+   - Contact Attributes
+   - Routing Information
+
+2. CCP Events
+   - Agent State Changes
+   - Contact State Changes
+   - System Events
+   - Error Events
+   - Performance Metrics
+
+### Splunk Dashboards
+
+1. Agent Performance Dashboard
+```xml
+<dashboard>
+  <label>Connect Agent Performance</label>
+  <row>
+    <panel>
+      <title>Contact Duration by Agent</title>
+      <chart>
+        <search>
+          <query>index="connect_logs" sourcetype="connect:ctr" 
+          | stats avg(duration) by agent_username</query>
+        </search>
+        <option name="charting.chart">bar</option>
+      </chart>
+    </panel>
+  </row>
+</dashboard>
+```
+
+2. Queue Metrics Dashboard
+```xml
+<dashboard>
+  <label>Connect Queue Metrics</label>
+  <row>
+    <panel>
+      <title>Queue Wait Times</title>
+      <chart>
+        <search>
+          <query>index="connect_logs" sourcetype="connect:ctr" 
+          | stats avg(queue_duration) by queue_name</query>
+        </search>
+        <option name="charting.chart">line</option>
+      </chart>
+    </panel>
+  </row>
+</dashboard>
+```
+
+### Splunk Alerts
+
+1. Long Queue Time Alert
+```xml
+<saved>
+  <search>
+    <query>index="connect_logs" sourcetype="connect:ctr" queue_duration > 300
+    | stats count by queue_name</query>
+    <alert>
+      <condition>
+        <count>10</count>
+      </condition>
+      <actions>
+        <email>
+          <to>alerts@example.com</to>
+          <subject>High Queue Time Alert</subject>
+        </email>
+      </actions>
+    </alert>
+  </search>
+</saved>
+```
+
+### Maintenance and Troubleshooting
+
+1. Monitor Firehose Delivery
+```bash
+aws firehose describe-delivery-stream \
+  --delivery-stream-name connect-to-splunk \
+  --region us-west-2
+```
+
+2. Check Failed Deliveries
+```bash
+aws s3 ls s3://backup-bucket/connect/failed-events/ \
+  --recursive \
+  --human-readable \
+  --summarize
+```
+
+3. Validate HEC Connection
+```bash
+curl -k https://your-splunk-instance:8088/services/collector/health \
+  -H "Authorization: Bearer your-hec-token"
+```
+
+### Best Practices
+
+1. Data Management
+   - Set appropriate retention periods
+   - Configure data rollover policies
+   - Implement data backup strategy
+
+2. Performance Optimization
+   - Adjust buffer sizes based on volume
+   - Monitor Firehose performance
+   - Scale HEC capacity as needed
+
+3. Security
+   - Use TLS for data transmission
+   - Rotate HEC tokens regularly
+   - Implement least privilege access
+
 ## Support and Resources
 
 - AWS Documentation
 - Connect Forums
 - AWS Support
 - Community Resources
+- Splunk Documentation
+- Splunk Connect for AWS
