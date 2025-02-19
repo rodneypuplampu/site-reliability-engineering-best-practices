@@ -3,6 +3,8 @@
 A comprehensive platform for managing cloud infrastructure, configuration, and application deployments through a unified interface.
 
 ## Architecture Overview
+An Example of what this Dashboard would look like is as follows:
+![Dashboard Template](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/images/infrastructure-deployment-dashboard.jpg)
 
 ```mermaid
 graph TD
