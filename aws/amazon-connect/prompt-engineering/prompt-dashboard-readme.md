@@ -2,7 +2,7 @@
 
 A sophisticated prompt engineering interface for managing conversational AI experiences in Amazon Connect, featuring RAG (Retrieval Augmented Generation) capabilities and real-time testing tools.
 
-![Prompt Engineering Dashboard Interface](/ui-image.jpg)
+![Prompt Engineering Dashboard Interface](aws/amazon-connect/prompt-engineering/ui-image.jpg)
 
 ## Features
 
