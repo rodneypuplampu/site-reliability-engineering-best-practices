@@ -1,0 +1,181 @@
+import os
+import json
+import boto3
+import logging
+from typing import Dict, Any, Optional
+from botocore.exceptions import ClientError
+
+# Setup logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+class SageMakerIntegration:
+    def __init__(self):
+        """Initialize SageMaker integration"""
+        self.sagemaker = boto3.client('sagemaker')
+        self.runtime = boto3.client('sagemaker-runtime')
+        self.endpoint_name = os.environ['SAGEMAKER_ENDPOINT_NAME']
+        
+    def create_endpoint_config(self, 
+                             model_name: str,
+                             instance_type: str = 'ml.g4dn.xlarge',
+                             instance_count: int = 1) -> str:
+        """
+        Create SageMaker endpoint configuration.
+        
+        Args:
+            model_name: Name of the model
+            instance_type: Instance type for endpoint
+            instance_count: Number of instances
+            
+        Returns:
+            Endpoint configuration name
+        """
+        config_name = f"{model_name}-config-{int(time.time())}"
+        
+        try:
+            self.sagemaker.create_endpoint_config(
+                EndpointConfigName=config_name,
+                ProductionVariants=[{
+                    'VariantName': 'AllTraffic',
+                    'ModelName': model_name,
+                    'InstanceType': instance_type,
+                    'InitialInstanceCount': instance_count,
+                    'InitialVariantWeight': 1.0
+                }],
+                Tags=[
+                    {
+                        'Key': 'Environment',
+                        'Value': 'Production'
+                    }
+                ]
+            )
+            
+            logger.info(f"Created endpoint config: {config_name}")
+            return config_name
+            
+        except ClientError as e:
+            logger.error(f"Error creating endpoint config: {str(e)}")
+            raise
+
+    def create_endpoint(self, 
+                       config_name: str) -> None:
+        """
+        Create SageMaker endpoint.
+        
+        Args:
+            config_name: Endpoint configuration name
+        """
+        try:
+            self.sagemaker.create_endpoint(
+                EndpointName=self.endpoint_name,
+                EndpointConfigName=config_name,
+                Tags=[
+                    {
+                        'Key': 'Environment',
+                        'Value': 'Production'
+                    }
+                ]
+            )
+            
+            logger.info(f"Created endpoint: {self.endpoint_name}")
+            
+        except ClientError as e:
+            logger.error(f"Error creating endpoint: {str(e)}")
+            raise
+
+    def invoke_endpoint(self, 
+                       payload: Dict[str, Any],
+                       custom_attributes: str = '') -> Optional[Dict[str, Any]]:
+        """
+        Invoke SageMaker endpoint.
+        
+        Args:
+            payload: Input payload
+            custom_attributes: Custom attributes string
+            
+        Returns:
+            Endpoint response or None if failed
+        """
+        try:
+            response = self.runtime.invoke_endpoint(
+                EndpointName=self.endpoint_name,
+                ContentType='application/json',
+                Body=json.dumps(payload),
+                CustomAttributes=custom_attributes
+            )
+            
+            return json.loads(response['Body'].read())
+            
+        except ClientError as e:
+            logger.error(f"Error invoking endpoint: {str(e)}")
+            return None
+
+    def update_endpoint(self, 
+                       new_config_name: str) -> None:
+        """
+        Update SageMaker endpoint.
+        
+        Args:
+            new_config_name: New endpoint configuration name
+        """
+        try:
+            self.sagemaker.update_endpoint(
+                EndpointName=self.endpoint_name,
+                EndpointConfigName=new_config_name
+            )
+            
+            logger.info(f"Updated endpoint: {self.endpoint_name}")
+            
+        except ClientError as e:
+            logger.error(f"Error updating endpoint: {str(e)}")
+            raise
+
+    def delete_endpoint(self) -> None:
+        """Delete SageMaker endpoint"""
+        try:
+            self.sagemaker.delete_endpoint(
+                EndpointName=self.endpoint_name
+            )
+            
+            logger.info(f"Deleted endpoint: {self.endpoint_name}")
+            
+        except ClientError as e:
+            logger.error(f"Error deleting endpoint: {str(e)}")
+            raise
+
+def lambda_handler(event: Dict[str, Any], 
+                  context: Any) -> Dict[str, Any]:
+    """
+    Lambda handler for SageMaker endpoint integration.
+    
+    Args:
+        event: Lambda event
+        context: Lambda context
+        
+    Returns:
+        Response dictionary
+    """
+    logger.info(f"Received event: {json.dumps(event)}")
+    
+    sagemaker_integration = SageMakerIntegration()
+    
+    try:
+        # Extract query details
+        query = event['Details']['ContactData']['Attributes']['customerInput']
+        contact_id = event['Details']['ContactData']['ContactId']
+        
+        # Prepare payload
+        payload = {
+            'query': query,
+            'context': {
+                'contact_id': contact_id,
+                'timestamp': event['Details']['ContactData']['InitiationTimestamp']
+            }
+        }
+        
+        # Invoke endpoint
+        response = sagemaker_integration.invoke_endpoint(
+            payload=payload,
+            custom_attributes=f"ContactId={contact_id}"
+        )

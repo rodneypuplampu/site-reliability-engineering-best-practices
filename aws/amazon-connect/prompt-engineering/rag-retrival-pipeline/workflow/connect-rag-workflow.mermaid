@@ -1,0 +1,36 @@
+flowchart TD
+    subgraph Customer Interaction
+        A[Customer] -->|Voice/Chat| B[Amazon Connect]
+    end
+
+    subgraph Contact Flow Processing
+        B -->|Capture Input| C[Contact Flow]
+        C -->|Invoke Lambda| D[AWS Lambda]
+    end
+
+    subgraph RAG Pipeline
+        D -->|Format Query| E[Format Prompt]
+        E -->|Query| F[Verba RAG System]
+        F -->|Retrieve| G[Vector Store]
+        G -->|Return Context| F
+        F -->|Generate Response| H[SageMaker Endpoint]
+    end
+
+    subgraph Response Handling
+        H -->|Process Output| I[Response Processor]
+        I -->|Success?| J{Query Status}
+        J -->|Yes| K[Return Natural Response]
+        J -->|No| L[Fallback Response]
+    end
+
+    subgraph Final Action
+        K --> M[Continue Flow]
+        L --> M
+        M -->|Route| N[Agent/Queue/Self-Service]
+    end
+
+    style A fill:#f9f,stroke:#333
+    style B fill:#bbf,stroke:#333
+    style F fill:#bfb,stroke:#333
+    style H fill:#fbf,stroke:#333
+    style J fill:#ff9,stroke:#333

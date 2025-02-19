@@ -1,0 +1,48 @@
+flowchart TD
+    subgraph "Customer Channels"
+        V[Voice Channel]
+        C[Chat Channel]
+    end
+
+    subgraph "Amazon Connect"
+        CF[Contact Flow]
+        V --> CF
+        C --> CF
+        CF -->|Invoke| L[Lambda Function]
+    end
+
+    subgraph "Lambda Processing"
+        L --> IP[Input Processor]
+        IP --> CD[Channel Detector]
+        CD --> TC[Text Cleaner]
+        TC --> MD[Metadata Handler]
+        MD --> RI[RAG Integrator]
+    end
+
+    subgraph "RAG System"
+        RI -->|Query| VR[Verba RAG]
+        VR -->|Retrieve| VS[(Vector Store)]
+        VS -->|Context| VR
+        VR -->|Generate| SM[SageMaker Endpoint]
+        SM -->|Response| RH[Response Handler]
+    end
+
+    subgraph "Response Processing"
+        RH --> CS[Confidence Scorer]
+        CS --> RL[Routing Logic]
+        RL -->|High Confidence| SS[Self Service]
+        RL -->|Medium Confidence| AQ[Agent Queue]
+        RL -->|Low Confidence| FB[Fallback]
+    end
+
+    subgraph "Monitoring & Logging"
+        L -->|Metrics| CW[(CloudWatch)]
+        SM -->|Performance| CW
+        RH -->|Outcomes| CW
+    end
+
+    style V fill:#f9f,stroke:#333
+    style C fill:#f9f,stroke:#333
+    style SM fill:#bbf,stroke:#333
+    style VR fill:#bfb,stroke:#333
+    style CW fill:#ff9,stroke:#333
