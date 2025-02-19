@@ -11,6 +11,7 @@ A comprehensive guide for implementing Amazon Connect contact center with advanc
 6. [CRM Integration](#crm-integration)
 7. [Analytics and Insights](#analytics-and-insights)
 8. [Monitoring Setup](#monitoring-setup)
+9. [Splunk Integration](#splunk-integration)
 
 ## Instance Setup
 
