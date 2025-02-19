@@ -1,4 +1,4 @@
-# Amazon Connect Implementation Demo Template
+# Amazon Connect Implementation Guide
 
 A comprehensive guide for implementing Amazon Connect contact center with advanced routing, CRM integration, and analytics.
 
@@ -8,10 +8,9 @@ A comprehensive guide for implementing Amazon Connect contact center with advanc
 3. [Queue Management](#queue-management)
 4. [Agent Configuration](#agent-configuration)
 5. [Contact Flows](#contact-flows)
-6. [CRM Integration to Salesforce](#crm-integration)
-7. [Analytics and Insights to Splunk](#analytics-and-insights)
+6. [CRM Integration](#crm-integration)
+7. [Analytics and Insights](#analytics-and-insights)
 8. [Monitoring Setup](#monitoring-setup)
-9. [Splunk Integration for cdr and ccp logs](#splunk-integration)
 
 ## Instance Setup
 
