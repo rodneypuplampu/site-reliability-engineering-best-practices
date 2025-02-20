@@ -1,5 +1,36 @@
 # Prompt Engineering Dashboard for Amazon Connect
 
+## Architecture
+```mermaid
+flowchart TD
+    subgraph Customer Interaction
+        A[Customer Call/Chat] --> B[Amazon Connect]
+        B --> C{Language Detection}
+    end
+
+    subgraph Natural Language Processing
+        C --> |Primary Language| D[Amazon Lex Bot]
+        C --> |Language Change| E[Language Agent Dashboard]
+        D --> F[Intent Recognition]
+        F --> G[Slot Filling]
+        G --> H[Response Generation]
+    end
+
+    subgraph Backend Processing
+        H --> I[Lambda Function]
+        I --> J[Contact Lens Analysis]
+        J --> K[Real-time Analytics]
+    end
+
+    subgraph Agent Dashboard
+        K --> L[Agent UI]
+        E --> L
+        L --> M[Training Interface]
+        M --> N[Model Updates]
+        N --> D
+    end
+```
+
 A sophisticated prompt engineering interface for managing conversational AI experiences in Amazon Connect, featuring RAG (Retrieval Augmented Generation) capabilities and real-time testing tools.
 
 ![Prompt Engineering Dashboard Interface](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/prompt-engineering/ui-image.jpg)
