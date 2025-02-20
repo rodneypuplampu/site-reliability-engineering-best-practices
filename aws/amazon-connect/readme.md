@@ -13,6 +13,37 @@ A comprehensive guide for implementing Amazon Connect contact center with advanc
 8. [Monitoring Setup](#monitoring-setup)
 9. [Splunk Integration](#splunk-integration)
 
+## Architecture
+```mermaid
+flowchart TD
+    subgraph Customer Interaction
+        A[Customer Call/Chat] --> B[Amazon Connect]
+        B --> C{Language Detection}
+    end
+
+    subgraph Natural Language Processing
+        C --> |Primary Language| D[Amazon Lex Bot]
+        C --> |Language Change| E[Language Agent Dashboard]
+        D --> F[Intent Recognition]
+        F --> G[Slot Filling]
+        G --> H[Response Generation]
+    end
+
+    subgraph Backend Processing
+        H --> I[Lambda Function]
+        I --> J[Contact Lens Analysis]
+        J --> K[Real-time Analytics]
+    end
+
+    subgraph Agent Dashboard
+        K --> L[Agent UI]
+        E --> L
+        L --> M[Training Interface]
+        M --> N[Model Updates]
+        N --> D
+    end
+```
+
 ## Instance Setup
 
 ### Create Amazon Connect Instance
