@@ -1,4 +1,4 @@
-# Prompt Engineering Dashboard for Amazon Connect
+# Prompt Engineering Dashboard for Amazon Connect Training Interface
 
 A sophisticated prompt engineering interface for managing conversational AI experiences in Amazon Connect, featuring RAG (Retrieval Augmented Generation) capabilities and real-time testing tools.
 
