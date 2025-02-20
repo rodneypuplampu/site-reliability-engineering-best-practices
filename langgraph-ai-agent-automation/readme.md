@@ -218,8 +218,3 @@ The system implements comprehensive monitoring through:
 
 MIT License - See LICENSE file for details
 
-## Contact
-
-- Project Lead: [Your Name]
-- Email: [your.email@example.com]
-- Repository: [GitHub Repository URL]
