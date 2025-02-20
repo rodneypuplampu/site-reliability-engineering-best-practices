@@ -208,8 +208,3 @@ For issues and support:
 - Check documentation
 - Contact maintainers
 
-## Maintainers
-
-- [Your Name]
-- [Contributor 1]
-- [Contributor 2]
