@@ -1,0 +1,19 @@
+flowchart TD
+    A[Incoming Call] --> B[Get Customer Number]
+    B --> C[Invoke Lambda]
+    
+    subgraph Lambda Function
+        C --> D{Check CRM}
+        D --> |Open Case| E[Return Case Details]
+        D --> |No Open Case| F[Return Name Only]
+    end
+    
+    E --> G[Play Dynamic Prompt]
+    F --> G
+    
+    G --> H{Has Open Case?}
+    H --> |Yes| I[Route to Specialist]
+    H --> |No| J[Route to Tier 1]
+    
+    I --> K[Specialist Queue]
+    J --> L[General Queue]
