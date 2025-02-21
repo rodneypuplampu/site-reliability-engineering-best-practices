@@ -34,10 +34,7 @@ flowchart TB
     AZBM --- AZVNET
     AWSVPC --- AZVNET
 
-    style GCP fill:#e1eeff,stroke:#333,stroke-width:2px
-    style AWS fill:#ffebd9,stroke:#333,stroke-width:2px
-    style AZURE fill:#e5d8ff,stroke:#333,stroke-width:2px
-    style ONPREM fill:#d9ffe9,stroke:#333,stroke-width:2px
+
 ```
 
 ## Prerequisites
