@@ -1,4 +1,4 @@
-# LLM Pipeline Monitoring & Maintenance System
+# Data Pipeline Monitoring & Maintenance System
 
 ## Overview
 This repository contains a comprehensive implementation of a monitoring and maintenance system for LLM pipelines using Apache Airflow, LangChain, and LangGraph. The system provides robust logging, performance tracking, alerting, and automated recovery procedures.
