@@ -14,7 +14,9 @@ This guide provides step-by-step instructions for implementing a conversational 
 
 ## System Architecture
 
-<div class="mermaid">
+The system architecture is composed of several interconnected components:
+
+```mermaid
 graph TD
     subgraph User_Interface
         UI[Chat Interface] --> NLP[Natural Language Processing]
@@ -52,7 +54,7 @@ graph TD
         IP --> VE[Vector Embeddings]
         VE --> VS
     end
-</div>
+```
 
 ## Prerequisites
 
