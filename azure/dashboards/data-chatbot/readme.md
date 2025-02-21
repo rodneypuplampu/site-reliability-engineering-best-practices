@@ -14,8 +14,6 @@ This guide provides step-by-step instructions for implementing a conversational 
 
 ## System Architecture
 
-The system architecture is composed of several interconnected components:
-
 <div class="mermaid">
 graph TD
     subgraph User_Interface
