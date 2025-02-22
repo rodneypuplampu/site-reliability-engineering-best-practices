@@ -3,8 +3,8 @@
 ## Table of Contents
 1. [Network Overview](#infrastructure-overview)
 2. [On-Prem Core Network](#2-on-premises-connectivity)
-3. [Routing Configurations](#5-route-configuration)
-4. [Security Infrastructure Overview](#core-network-infrastructure-security-and-monitoring-guide)
+3. [Security Overview](#5-route-configuration)
+4. [Security and Monitoring Implementation Guide](#core-network-infrastructure-security-and-monitoring-guide)
 5. [Route Configuration](#route-configuration)
 6. [Security Implementation](#security-implementation)
 7. [Prometheus Monitoring Setup](#prometheus-monitoring-setup)
