@@ -1,4 +1,4 @@
-# Apache Beam Jupyter Notebook Development Environment Setup
+# Apache Beam Jupyter Notebook and BigQuery Dataflow Deployment
 
 ## Project Structure
 ```
