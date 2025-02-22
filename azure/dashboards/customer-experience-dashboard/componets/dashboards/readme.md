@@ -164,17 +164,18 @@ graph TD
    - Customer Satisfaction Score (CSAT)
    - Customer Effort Score (CES)
    - Response Volume Tracking
+![Demo Example 1](azure/dashboards/customer-experience-dashboard/componets/dashboards/analtics-dashboad1.jpg)
 
 2. **Trends Analysis**
    - Time series visualization
    - Multi-metric comparison
    - Customizable time ranges
-
+![Demo Example 2](azure/dashboards/customer-experience-dashboard/componets/dashboards/analtics-dashboad2.jpg)
 3. **Segment Analysis**
    - Customer segmentation
    - Comparative metrics
    - Response distribution
-
+![Demo Example 3](azure/dashboards/customer-experience-dashboard/componets/dashboards/analtics-dashboad3.jpg)
 4. **Statistical Insights**
    - Correlation analysis
    - Standard deviation calculations
