@@ -167,7 +167,7 @@ gcloud compute routers update core-router \
 - Implement route summarization where possible
 - Configure failover routes
 
-### 6. Security Implementation
+### 6. Security Implementation Overview
 
 6.1. Configure Firewall Rules
 ```bash
