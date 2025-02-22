@@ -1,7 +1,7 @@
 # Multi-Cloud Network Architecture Implementation Guide
 
 ## Table of Contents
-1. [Network Core Implementation Overview](#network-core-implementation-overview)
+1. [Network Overview](#infrastructure-overview)
 2. [On-Prem Core Network](#2-on-premises-connectivity)
 3. [Routing Configurations](#5-route-configuration)
 4. [Security Infrastructure Overview](#core-network-infrastructure-security-and-monitoring-guide)
