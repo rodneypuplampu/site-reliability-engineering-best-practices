@@ -4,7 +4,7 @@
 1. [Network Core Implementation Overview](#network-core-implementation-overview)
 2. [On-Prem Core Network](#2-on-premises-connectivity)
 3. [](#)
-4. [Security Infrastructure Overview](#infrastructure-overview)
+4. [Security Infrastructure Overview]([#infrastructure-overview](#core-network-infrastructure-security-and-monitoring-guide)
 5. [Route Configuration](#route-configuration)
 6. [Security Implementation](#security-implementation)
 7. [Prometheus Monitoring Setup](#prometheus-monitoring-setup)
