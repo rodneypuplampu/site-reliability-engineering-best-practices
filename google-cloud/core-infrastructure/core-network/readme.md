@@ -3,7 +3,7 @@
 ## Table of Contents
 1. [Network Core Implementation Overview](#network-core-implementation-overview)
 2. [On-Prem Core Network](#2-on-premises-connectivity)
-3. [](#)
+3. [Routing Configurations](#5-route-configuration)
 4. [Security Infrastructure Overview](#core-network-infrastructure-security-and-monitoring-guide)
 5. [Route Configuration](#route-configuration)
 6. [Security Implementation](#security-implementation)
