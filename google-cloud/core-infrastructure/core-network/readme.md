@@ -1,12 +1,15 @@
 # Multi-Cloud Network Architecture Implementation Guide
 
 ## Table of Contents
-1. [Security Infrastructure Overview](#infrastructure-overview)
-2. [Route Configuration](#route-configuration)
-3. [Security Implementation](#security-implementation)
-4. [Prometheus Monitoring Setup](#prometheus-monitoring-setup)
-5. [Verification Procedures](#verification-procedures)
-6. [Alerting Configuration](#alerting-configuration)
+1. [Network Core Implementation Overview](##)
+2. [](#)
+3. [](#)
+4. [Security Infrastructure Overview](#infrastructure-overview)
+5. [Route Configuration](#route-configuration)
+6. [Security Implementation](#security-implementation)
+7. [Prometheus Monitoring Setup](#prometheus-monitoring-setup)
+8. [Verification Procedures](#verification-procedures)
+9. [Alerting Configuration](#alerting-configuration)
 
 ## Infrastructure Overview
 
@@ -55,7 +58,7 @@ flowchart TB
 - Reserved IP address ranges (CIDR blocks) for each environment
 - Required network connectivity permissions in all environments
 
-## Implementation Steps
+## Network Core Implementation Overview
 
 ### 1. Google Cloud Core Network Setup
 
