@@ -1,7 +1,7 @@
 # Multi-Cloud Network Architecture Implementation Guide
 
 ## Table of Contents
-1. [Infrastructure Overview](#infrastructure-overview)
+1. [Security Infrastructure Overview](#infrastructure-overview)
 2. [Route Configuration](#route-configuration)
 3. [Security Implementation](#security-implementation)
 4. [Prometheus Monitoring Setup](#prometheus-monitoring-setup)
