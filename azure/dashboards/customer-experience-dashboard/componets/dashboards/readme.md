@@ -164,18 +164,18 @@ graph TD
    - Customer Satisfaction Score (CSAT)
    - Customer Effort Score (CES)
    - Response Volume Tracking
-![Demo Example 1](https://raw.githubusercontent.com/rodneypuplampu/site-reliability-engineering-best-practices/refs/heads/main/azure/dashboards/customer-experience-dashboard/componets/dashboards/analtics-dashboad1.jpg)
+![Demo Example 1](https://raw.githubusercontent.com/rodneypuplampu/site-reliability-engineering-best-practices/refs/heads/main/azure/dashboards/customer-experience-dashboard/componets/dashboards/cx-analytics-dashboard1.jpg)
 
 2. **Trends Analysis**
    - Time series visualization
    - Multi-metric comparison
    - Customizable time ranges
-![Demo Example 2](https://raw.githubusercontent.com/rodneypuplampu/site-reliability-engineering-best-practices/refs/heads/main/azure/dashboards/customer-experience-dashboard/componets/dashboards/analytics-dashboad2.jpg)
+![Demo Example 2](https://raw.githubusercontent.com/rodneypuplampu/site-reliability-engineering-best-practices/refs/heads/main/azure/dashboards/customer-experience-dashboard/componets/dashboards/analytics-dashboard2.jpg)
 3. **Segment Analysis**
    - Customer segmentation
    - Comparative metrics
    - Response distribution
-![Demo Example 3](https://raw.githubusercontent.com/rodneypuplampu/site-reliability-engineering-best-practices/refs/heads/main/azure/dashboards/customer-experience-dashboard/componets/dashboards/cx-analytics-dashboad3.jpg)
+![Demo Example 3](https://raw.githubusercontent.com/rodneypuplampu/site-reliability-engineering-best-practices/refs/heads/main/azure/dashboards/customer-experience-dashboard/componets/dashboards/analtics-dashboad3.jpg)
 4. **Statistical Insights**
    - Correlation analysis
    - Standard deviation calculations
