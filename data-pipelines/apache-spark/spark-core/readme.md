@@ -16,46 +16,7 @@ This document provides a comprehensive guide for implementing a production-grade
 
 ## System Architecture
 
-### High-Level Architecture
-```mermaid
-flowchart TB
-    subgraph Data Sources
-        S1[CSV Files]
-        S2[JSON Data]
-        S3[External APIs]
-        S4[Databases]
-    end
 
-    subgraph Data Lake
-        DL[Raw Data Zone]
-        DC[Curated Zone]
-        DT[Transformed Zone]
-    end
-
-    subgraph Processing Layer
-        P1[Spark Batch Jobs]
-        P2[Spark Streaming]
-        P3[Data Quality Checks]
-    end
-
-    subgraph Analytics Layer
-        A1[Feature Store]
-        A2[ML Models]
-        A3[Analytics DB]
-    end
-
-    subgraph Presentation Layer
-        V1[Dashboard]
-        V2[Reports]
-        V3[APIs]
-    end
-
-    Data Sources --> DL
-    DL --> Processing Layer
-    Processing Layer --> DC
-    DC --> Analytics Layer
-    Analytics Layer --> Presentation Layer
-```
 
 ### Data Pipeline Flow
 ```mermaid
