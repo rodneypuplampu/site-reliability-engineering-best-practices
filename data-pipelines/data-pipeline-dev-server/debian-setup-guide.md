@@ -9,6 +9,7 @@
 - [Additional Tools Installation](#additional-tools-installation)
 - [Security Considerations](#security-considerations)
 - [System Verification](#system-verification)
+- [Local Dev Pipeline Build](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/data-pipelines/data-pipeline-dev-server/readme.md)
 
 ## System Requirements
 - Minimum 4GB RAM (8GB recommended)
