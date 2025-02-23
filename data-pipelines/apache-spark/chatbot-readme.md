@@ -1,4 +1,4 @@
-# Intelligent Vector Search Chatbot
+# Apache Spark Data Analytics Dashboard and Intelligent Vector Search Chatbot
 
 A sophisticated chatbot system that combines vector search capabilities with Apache Spark processing, LangChain, and LangGraph for advanced NLP-driven analytics and visualization.
 
