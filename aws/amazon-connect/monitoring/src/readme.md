@@ -124,7 +124,16 @@ amazon-connect-dashboard/
 ├── vite.config.js                         # Vite configuration
 └── README.md                              # Project documentation
 ```
-
+## Dashboard
+![Start Page](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/monitoring/src/images/ac-dashboard1.jpg)
+![Other Reports](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/monitoring/src/images/ac-dashboard2.jpg)
+![](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/monitoring/src/images/ac-dashboard3.jpg)
+![](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/monitoring/src/images/ac-dashboard4.jpg)
+![](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/monitoring/src/images/ac-dashboard5.jpg)
+![](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/monitoring/src/images/ac-dashboard6.jpg)
+![](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/monitoring/src/images/ac-dashboard7.jpg)
+![](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/monitoring/src/images/ac-dashboard8.jpg)
+![](https://github.com/rodneypuplampu/site-reliability-engineering-best-practices/blob/main/aws/amazon-connect/monitoring/src/images/ac-dashboard9.jpg)
 ## Implementation Steps
 
 ### 1. Project Setup
