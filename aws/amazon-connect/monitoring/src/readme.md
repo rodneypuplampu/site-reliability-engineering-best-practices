@@ -38,8 +38,8 @@ graph TD
     Reports --> RecentReports[Recent Reports]
     
     classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:black;
-    classDef react fill:#61DAFB,stroke:#232F3E,stroke-width:2px;
-    classDef component fill:#B9E0A5,stroke:#232F3E,stroke-width:2px;
+    classDef react fill:#61DAFB,stroke:#232F3E,stroke-width:2pxcolor:black;
+    classDef component fill:#B9E0A5,stroke:#232F3E,stroke-width:2px,2pxcolor:black;
     classDef database fill:#3C873A,stroke:#232F3E,stroke-width:2px,color:black;
     
     class Connect,Lambda,Cognito,S3 aws;
