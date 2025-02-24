@@ -2,51 +2,474 @@
 
 This guide provides step-by-step instructions for implementing the Amazon Connect Customer Experience Dashboard frontend GUI using React and Tailwind CSS.
 
-## Architecture Diagram
-
 ```mermaid
 graph TD
-    Browser[Browser] --> |HTTP Requests| React[React Frontend]
-    React --> |API Calls| Backend[Node.js API Backend]
-    Backend --> |SQL Queries| Database[(PostgreSQL Database)]
-    Database --> |CDR Data| Lambda[AWS Lambda Functions]
-    Lambda --> |Contact Details| Connect[Amazon Connect]
-    Connect --> |Call Events| Lambda
-    React --> |User Authentication| Cognito[AWS Cognito]
-    React --> |Static Assets| S3[AWS S3]
+    User((Customer)) -->|Calls/Chats| Connect[Amazon Connect]
+    Connect -->|Contact Flow| Lambda1[Lambda: CDR Capture]
+    Connect -->|Voice| Lex[Amazon Lex]
+    Connect -->|Chat| Lambda3[Lambda: Chat Transcript Capture]
+    Lex -->|Intent/Slots| Lambda2[Lambda: Lex Transcript Capture]
+    Connect -->|Menu Options| Lambda4[Lambda: Contact Flow Data Capture]
+    Lambda1 -->|Store Data| RDS[(PostgreSQL RDS)]
+    Lambda2 -->|Store Data| RDS
+    Lambda3 -->|Store Data| RDS
+    Lambda4 -->|Store Data| RDS
+    RDS -->|Query Data| API[API Backend]
+    API -->|Serve Data| WebApp[Web Dashboard]
+    WebApp -->|View| Admin((Administrator))
     
-    subgraph "Frontend Components"
-        React --> Dashboard[Dashboard View]
-        React --> Contacts[Contact Records View]
-        React --> Analytics[Analytics View] 
-        React --> Reports[Reports View]
-    end
+    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:white;
+    classDef database fill:#3C873A,stroke:#232F3E,stroke-width:2px,color:white;
+    classDef user fill:#B9E0A5,stroke:#232F3E,stroke-width:2px;
     
-    Dashboard --> KPI[KPI Cards]
-    Dashboard --> Charts[Call Charts]
-    Dashboard --> QueuePerf[Queue Performance]
-    
-    Contacts --> SearchForm[Search Form]
-    Contacts --> ContactTable[Contact Records Table]
-    
-    Analytics --> CallDist[Call Distribution]
-    Analytics --> QueueDist[Queue Distribution]
-    Analytics --> Summary[Analytics Summary]
-    
-    Reports --> ReportGen[Report Generator]
-    Reports --> ReportList[Available Reports]
-    Reports --> RecentReports[Recent Reports]
-    
-    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:black;
-    classDef react fill:#808080,stroke:#232F3E,stroke-width:2px;
-    classDef component fill:#A9A9A9,stroke:#232F3E,stroke-width:2px;
-    classDef database fill:#3C873A,stroke:#232F3E,stroke-width:2px,color:black;
-    
-    class Connect,Lambda,Cognito,S3 aws;
-    class React,Dashboard,Contacts,Analytics,Reports react;
-    class KPI,Charts,QueuePerf,SearchForm,ContactTable,CallDist,QueueDist,Summary,ReportGen,ReportList,RecentReports component;
-    class Database database;
+    class Connect,Lex,Lambda1,Lambda2,Lambda3,Lambda4 aws;
+    class RDS database;
+    class User,Admin user;
 ```
+
+The solution consists of the following components:
+- Amazon Connect instance with Contact Flows
+- Amazon Lex bots for automated interactions
+- AWS Lambda functions for data processing
+- Amazon RDS PostgreSQL for data storage
+- Web Dashboard for visualization and reporting
+
+## 1. Prerequisites
+
+- AWS account with administrative access
+- Basic understanding of AWS services
+- PostgreSQL knowledge
+- Web development experience
+
+## 2. Setting Up Amazon Connect
+
+### 2.1 Create an Amazon Connect Instance
+
+1. Navigate to the Amazon Connect console
+2. Click "Add an instance"
+3. Follow the wizard:
+   - Set identity management
+   - Create an admin account
+   - Set telephony options (enable both inbound and outbound)
+   - Configure data storage (for call recordings and reports)
+   - Review and create
+
+### 2.2 Claim a Phone Number
+
+1. In your Amazon Connect instance, go to "Channels" > "Phone numbers"
+2. Click "Claim a number"
+3. Select your country and a number
+4. Assign it to a basic contact flow for now (we'll update this later)
+
+## 3. Creating the PostgreSQL Database
+
+### 3.1 Launch an Amazon RDS PostgreSQL Instance
+
+1. Navigate to the Amazon RDS console
+2. Click "Create database"
+3. Select "PostgreSQL"
+4. Configure:
+   - DB instance identifier: `connect-cdr-db`
+   - Master username and password
+   - DB instance size (recommended t3.medium for production)
+   - Storage and availability settings
+   - VPC and security group settings (ensure it can be accessed by Lambda)
+5. Create database
+
+### 3.2 Set Up the Database Schema
+
+Connect to your PostgreSQL instance and execute the following SQL:
+
+```sql
+CREATE DATABASE connect_cdr;
+
+\c connect_cdr
+
+CREATE TABLE contact_records (
+    id SERIAL PRIMARY KEY,
+    contact_id VARCHAR(255) NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    ani VARCHAR(50),
+    dnis VARCHAR(50),
+    queue_name VARCHAR(100),
+    agent_id VARCHAR(100),
+    contact_duration INTEGER,
+    wait_time INTEGER,
+    call_recording_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE lex_interactions (
+    id SERIAL PRIMARY KEY,
+    contact_id VARCHAR(255) NOT NULL,
+    intent_name VARCHAR(100),
+    slot_data JSONB,
+    confidence_score FLOAT,
+    timestamp TIMESTAMP,
+    FOREIGN KEY (contact_id) REFERENCES contact_records(contact_id)
+);
+
+CREATE TABLE contact_flow_data (
+    id SERIAL PRIMARY KEY,
+    contact_id VARCHAR(255) NOT NULL,
+    flow_name VARCHAR(100),
+    module_name VARCHAR(100),
+    menu_options_selected JSONB,
+    timestamp TIMESTAMP,
+    FOREIGN KEY (contact_id) REFERENCES contact_records(contact_id)
+);
+
+CREATE TABLE chat_transcripts (
+    id SERIAL PRIMARY KEY,
+    contact_id VARCHAR(255) NOT NULL,
+    participant_type VARCHAR(50),
+    participant_id VARCHAR(100),
+    message TEXT,
+    timestamp TIMESTAMP,
+    FOREIGN KEY (contact_id) REFERENCES contact_records(contact_id)
+);
+
+CREATE INDEX idx_contact_id ON contact_records(contact_id);
+CREATE INDEX idx_timestamp ON contact_records(timestamp);
+CREATE INDEX idx_ani ON contact_records(ani);
+CREATE INDEX idx_dnis ON contact_records(dnis);
+```
+
+## 4. Setting Up Lambda Functions
+
+### 4.1 Create IAM Role for Lambda
+
+1. Navigate to IAM console
+2. Create a new role with the following permissions:
+   - AmazonConnectFullAccess
+   - AmazonRDSDataFullAccess
+   - AWSLambdaBasicExecutionRole
+   - CloudWatchLogsFullAccess
+
+### 4.2 Create Lambda Function for CDR Capture
+
+1. Navigate to Lambda console
+2. Click "Create function"
+3. Configure:
+   - Name: `ConnectCDRCapture`
+   - Runtime: Node.js 18.x
+   - Execution role: Use the IAM role created above
+4. Click "Create function"
+5. Replace the default code with the following:
+
+```javascript
+const { Client } = require('pg');
+const AWS = require('aws-sdk');
+
+// Database configuration
+const dbConfig = {
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT || 5432,
+  ssl: {
+    rejectUnauthorized: false
+  }
+};
+
+exports.handler = async (event, context) => {
+  console.log('Event received:', JSON.stringify(event, null, 2));
+  
+  // Extract contact details from the event
+  const contactId = event.Details.ContactId;
+  const ani = event.Details.Parameters.ANI || '';
+  const dnis = event.Details.Parameters.DNIS || '';
+  const queueName = event.Details.Parameters.QueueName || '';
+  const agentId = event.Details.Parameters.AgentId || '';
+  
+  // Connect to the database
+  const client = new Client(dbConfig);
+  
+  try {
+    await client.connect();
+    
+    // Insert contact record
+    const query = `
+      INSERT INTO contact_records (
+        contact_id, timestamp, ani, dnis, queue_name, agent_id
+      ) VALUES ($1, NOW(), $2, $3, $4, $5)
+      RETURNING id;
+    `;
+    
+    const values = [contactId, ani, dnis, queueName, agentId];
+    const result = await client.query(query, values);
+    
+    console.log('Contact record created with ID:', result.rows[0].id);
+    
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        message: 'Contact record created successfully',
+        contactId: contactId
+      })
+    };
+  } catch (error) {
+    console.error('Error:', error);
+    throw error;
+  } finally {
+    await client.end();
+  }
+};
+```
+
+6. Configure environment variables:
+   - DB_HOST: Your PostgreSQL endpoint
+   - DB_NAME: connect_cdr
+   - DB_USER: Your master username
+   - DB_PASSWORD: Your master password
+   - DB_PORT: 5432
+
+7. Add the PostgreSQL client library:
+   - Click "Code" > "Upload from" > "Amazon S3 location"
+   - Create a layer with the pg module (or use a pre-existing PostgreSQL layer)
+
+### 4.3 Create Lambda Function for Lex Transcript Capture
+
+Follow similar steps to create a `LexTranscriptCapture` Lambda function:
+
+```javascript
+const { Client } = require('pg');
+
+exports.handler = async (event, context) => {
+  console.log('Lex event received:', JSON.stringify(event, null, 2));
+  
+  // Extract Lex data
+  const contactId = event.sessionState.sessionAttributes.contactId;
+  const intentName = event.sessionState.intent.name;
+  const slots = event.sessionState.intent.slots;
+  const confidenceScore = event.interpretations[0].nluConfidence.score;
+  
+  // Connect to database
+  const client = new Client({
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT || 5432,
+    ssl: { rejectUnauthorized: false }
+  });
+  
+  try {
+    await client.connect();
+    
+    const query = `
+      INSERT INTO lex_interactions (
+        contact_id, intent_name, slot_data, confidence_score, timestamp
+      ) VALUES ($1, $2, $3, $4, NOW())
+    `;
+    
+    const values = [contactId, intentName, JSON.stringify(slots), confidenceScore];
+    await client.query(query, values);
+    
+    return {
+      sessionState: event.sessionState,
+      messages: event.messages
+    };
+  } catch (error) {
+    console.error('Error:', error);
+    throw error;
+  } finally {
+    await client.end();
+  }
+};
+```
+
+### 4.4 Create Lambda Function for Chat Transcript Capture
+
+Similarly, create a `ChatTranscriptCapture` Lambda function:
+
+```javascript
+const { Client } = require('pg');
+const AWS = require('aws-sdk');
+
+exports.handler = async (event, context) => {
+  console.log('Chat event received:', JSON.stringify(event, null, 2));
+  
+  const contactId = event.Details.ContactId;
+  const transcripts = event.Details.Transcripts || [];
+  
+  // Connect to database
+  const client = new Client({
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT || 5432,
+    ssl: { rejectUnauthorized: false }
+  });
+  
+  try {
+    await client.connect();
+    
+    // Process each message in the transcript
+    for (const message of transcripts) {
+      const query = `
+        INSERT INTO chat_transcripts (
+          contact_id, participant_type, participant_id, message, timestamp
+        ) VALUES ($1, $2, $3, $4, $5)
+      `;
+      
+      const values = [
+        contactId,
+        message.ParticipantType,
+        message.ParticipantId,
+        message.Content,
+        new Date(message.Timestamp)
+      ];
+      
+      await client.query(query, values);
+    }
+    
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        message: 'Chat transcript saved successfully',
+        contactId: contactId
+      })
+    };
+  } catch (error) {
+    console.error('Error:', error);
+    throw error;
+  } finally {
+    await client.end();
+  }
+};
+```
+
+### 4.5 Create Lambda Function for Contact Flow Data Capture
+
+Create a `ContactFlowDataCapture` Lambda function:
+
+```javascript
+const { Client } = require('pg');
+
+exports.handler = async (event, context) => {
+  console.log('Contact flow event received:', JSON.stringify(event, null, 2));
+  
+  const contactId = event.Details.ContactId;
+  const flowName = event.Details.Parameters.FlowName || '';
+  const moduleName = event.Details.Parameters.ModuleName || '';
+  const menuOptionsSelected = event.Details.Parameters.MenuOptions || '{}';
+  
+  // Connect to database
+  const client = new Client({
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT || 5432,
+    ssl: { rejectUnauthorized: false }
+  });
+  
+  try {
+    await client.connect();
+    
+    const query = `
+      INSERT INTO contact_flow_data (
+        contact_id, flow_name, module_name, menu_options_selected, timestamp
+      ) VALUES ($1, $2, $3, $4, NOW())
+    `;
+    
+    const values = [contactId, flowName, moduleName, JSON.parse(menuOptionsSelected)];
+    await client.query(query, values);
+    
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        message: 'Contact flow data saved successfully',
+        contactId: contactId
+      })
+    };
+  } catch (error) {
+    console.error('Error:', error);
+    throw error;
+  } finally {
+    await client.end();
+  }
+};
+```
+
+## 5. Setting Up Amazon Lex
+
+### 5.1 Create an Amazon Lex Bot
+
+1. Navigate to the Amazon Lex console
+2. Click "Create bot"
+3. Configure:
+   - Bot name: `ConnectCustomerBot`
+   - IAM permissions: Create a new role
+   - COPPA: Choose appropriate option
+   - Idle session timeout: 5 minutes
+4. Create intents for your common customer inquiries
+5. Build and test your bot
+
+### 5.2 Integrate Lex with Lambda
+
+1. In your Lex bot, go to the intent configuration
+2. Under "Fulfillment", select "AWS Lambda function"
+3. Choose the `LexTranscriptCapture` function
+4. Enable "Code hook for" both "Initialization and validation" and "Fulfillment"
+5. Save the intent and rebuild the bot
+
+## 6. Setting Up Amazon Connect Contact Flows
+
+### 6.1 Create a Basic Contact Flow
+
+1. In your Amazon Connect instance, go to "Routing" > "Contact flows"
+2. Create a new contact flow
+3. Add the following blocks:
+   - Set contact attributes (set FlowName to the current flow name)
+   - Check contact attributes (ANI/DNIS)
+   - Play prompt
+   - Get customer input
+   - Transfer to queue
+   - Disconnect
+
+### 6.2 Integrate Lambda Functions with Contact Flow
+
+1. In your contact flow, add an "Invoke AWS Lambda function" block
+2. Select the `ConnectCDRCapture` function
+3. Connect this block at the beginning of your flow
+4. Add another "Invoke AWS Lambda function" block before the "Disconnect" block
+5. Select the `ContactFlowDataCapture` function
+6. Save and publish your contact flow
+
+### 6.3 Set Up a Contact Flow with Lex Integration
+
+1. Create a new contact flow
+2. Add a "Get customer input" block
+3. Configure it to use your Lex bot
+4. Add appropriate branches based on the Lex bot responses
+5. Add Lambda invocation blocks as needed
+6. Save and publish your contact flow
+
+### 6.4 Update Phone Number Assignment
+
+1. Go to "Channels" > "Phone numbers"
+2. Select your claimed number
+3. Set the contact flow to your newly created flow
+4. Save
+
+## 7. Setting Up Chat Integration
+
+### 7.1 Configure Amazon Connect Chat
+
+1. In Amazon Connect, go to "Channels" > "Chat"
+2. Set up a chat widget for your website
+3. Configure the chat flow to include the Lambda invocations
+
+### 7.2 Implement Chat Transcript Capture
+
+1. In your chat contact flow, add an "Invoke AWS Lambda function" block
+2. Select the `ChatTranscriptCapture` function
+3. Configure appropriate error handling
+4. Save and publish the flow
 
 ## Project Directory Structure
 
