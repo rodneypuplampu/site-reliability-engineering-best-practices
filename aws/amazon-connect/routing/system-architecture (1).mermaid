@@ -1,0 +1,61 @@
+flowchart TD
+    subgraph "Global Architecture"
+        DYNDB[("Global DynamoDB\nMulti-Region")]
+        LAMBDA["AWS Lambda\nRouting Functions"]
+        API["API Gateway\nManagement Interface"]
+        CFW["CloudFormation/CDK\nInfrastructure"]
+        CW["CloudWatch\nMonitoring"]
+        SNS["SNS\nAlerts"]
+        
+        subgraph "Region: US-EAST-1"
+            AC1["Amazon Connect\nInstance"]
+            CF1["Contact Flows"]
+        end
+        
+        subgraph "Region: EU-WEST-1"
+            AC2["Amazon Connect\nInstance"]
+            CF2["Contact Flows"]
+        end
+        
+        subgraph "Region: AP-SOUTHEAST-1"
+            AC3["Amazon Connect\nInstance"]
+            CF3["Contact Flows"]
+        end
+        
+        %% DynamoDB relationships
+        DYNDB <--> LAMBDA
+        
+        %% Lambda relationships
+        LAMBDA --> AC1
+        LAMBDA --> AC2
+        LAMBDA --> AC3
+        
+        %% API Gateway relationships
+        API --> LAMBDA
+        
+        %% CloudFormation relationships
+        CFW --> DYNDB
+        CFW --> LAMBDA
+        CFW --> API
+        
+        %% Monitoring relationships
+        CW --> DYNDB
+        CW --> LAMBDA
+        CW --> SNS
+        
+        %% Amazon Connect relationships
+        AC1 --> CF1
+        AC2 --> CF2
+        AC3 --> CF3
+        
+        %% Contact flows invoke Lambda
+        CF1 --> LAMBDA
+        CF2 --> LAMBDA
+        CF3 --> LAMBDA
+    end
+    
+    CALLER(["Caller"]) --> AC1
+    CALLER --> AC2
+    CALLER --> AC3
+    
+    ADMIN(["Admin User"]) --> API
