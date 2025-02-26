@@ -1,0 +1,366 @@
+# Amazon Connect Multi-Region Configuration
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon Connect Multi-Region Deployment with Google Cloud Router Integration'
+
+Parameters:
+  PrimaryRegion:
+    Type: String
+    Default: us-east-1
+    AllowedValues:
+      - us-east-1
+      - us-west-2
+      - eu-west-1
+      - eu-central-1
+      - ap-northeast-1
+    Description: Primary AWS region for Amazon Connect
+
+  SecondaryRegion:
+    Type: String
+    Default: us-west-2
+    AllowedValues:
+      - us-east-1
+      - us-west-2
+      - eu-west-1
+      - eu-central-1
+      - ap-northeast-1
+    Description: Secondary AWS region for Amazon Connect failover
+
+  ConnectInstanceAlias:
+    Type: String
+    Default: my-connect-instance
+    Description: Alias for the Amazon Connect instance
+
+  ConnectPhoneNumber:
+    Type: String
+    Description: Phone number to claim for Amazon Connect (E.164 format)
+
+  GCPProjectID:
+    Type: String
+    Description: Google Cloud Project ID for the interconnect
+
+  VPCCIDRPrimary:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block for the primary VPC
+
+  VPCCIDRSecondary:
+    Type: String
+    Default: 10.1.0.0/16
+    Description: CIDR block for the secondary VPC
+
+Resources:
+  # PRIMARY REGION RESOURCES
+  PrimaryVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDRPrimary
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-primary-vpc
+
+  PrimarySubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref PrimaryVPC
+      CidrBlock: !Select [0, !Cidr [!Ref VPCCIDRPrimary, 4, 8]]
+      AvailabilityZone: !Select [0, !GetAZs {Ref: 'AWS::Region'}]
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-primary-subnet-1
+
+  PrimarySubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref PrimaryVPC
+      CidrBlock: !Select [1, !Cidr [!Ref VPCCIDRPrimary, 4, 8]]
+      AvailabilityZone: !Select [1, !GetAZs {Ref: 'AWS::Region'}]
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-primary-subnet-2
+
+  PrimaryConnectInstance:
+    Type: AWS::Connect::Instance
+    Properties:
+      InstanceAlias: !Sub ${ConnectInstanceAlias}-primary
+      Attributes:
+        InboundCalls: true
+        OutboundCalls: true
+        ContactflowLogs: true
+
+  PrimaryConnectPhoneNumber:
+    Type: AWS::Connect::PhoneNumber
+    Properties:
+      TargetArn: !GetAtt PrimaryConnectInstance.Arn
+      CountryCode: US
+      Type: DID
+      Description: Primary Connect Phone Number
+
+  # SECONDARY REGION RESOURCES
+  SecondaryVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDRSecondary
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-secondary-vpc
+
+  SecondarySubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SecondaryVPC
+      CidrBlock: !Select [0, !Cidr [!Ref VPCCIDRSecondary, 4, 8]]
+      AvailabilityZone: !Select [0, !GetAZs {Ref: 'AWS::Region'}]
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-secondary-subnet-1
+
+  SecondarySubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SecondaryVPC
+      CidrBlock: !Select [1, !Cidr [!Ref VPCCIDRSecondary, 4, 8]]
+      AvailabilityZone: !Select [1, !GetAZs {Ref: 'AWS::Region'}]
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-secondary-subnet-2
+
+  SecondaryConnectInstance:
+    Type: AWS::Connect::Instance
+    Properties:
+      InstanceAlias: !Sub ${ConnectInstanceAlias}-secondary
+      Attributes:
+        InboundCalls: true
+        OutboundCalls: true
+        ContactflowLogs: true
+
+  # VPN Gateway for GCP Interconnect - Primary Region
+  PrimaryVPNGateway:
+    Type: AWS::EC2::VPNGateway
+    Properties:
+      Type: ipsec.1
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-primary-vpn-gateway
+
+  PrimaryVPNGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref PrimaryVPC
+      VpnGatewayId: !Ref PrimaryVPNGateway
+
+  # VPN Gateway for GCP Interconnect - Secondary Region
+  SecondaryVPNGateway:
+    Type: AWS::EC2::VPNGateway
+    Properties:
+      Type: ipsec.1
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-secondary-vpn-gateway
+
+  SecondaryVPNGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref SecondaryVPC
+      VpnGatewayId: !Ref SecondaryVPNGateway
+
+  # Route Propagation
+  PrimaryRouteTablePropagation:
+    Type: AWS::EC2::VPNGatewayRoutePropagation
+    DependsOn: PrimaryVPNGatewayAttachment
+    Properties:
+      RouteTableIds:
+        - !Ref PrimaryRouteTable
+      VpnGatewayId: !Ref PrimaryVPNGateway
+
+  SecondaryRouteTablePropagation:
+    Type: AWS::EC2::VPNGatewayRoutePropagation
+    DependsOn: SecondaryVPNGatewayAttachment
+    Properties:
+      RouteTableIds:
+        - !Ref SecondaryRouteTable
+      VpnGatewayId: !Ref SecondaryVPNGateway
+
+  # Route Tables
+  PrimaryRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref PrimaryVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-primary-route-table
+
+  SecondaryRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SecondaryVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${ConnectInstanceAlias}-secondary-route-table
+
+  # Connect Traffic Distribution Group for Multi-Region
+  ConnectTrafficDistributionGroup:
+    Type: AWS::Connect::TrafficDistributionGroup
+    Properties:
+      Name: !Sub ${ConnectInstanceAlias}-tdg
+      Description: Traffic Distribution Group for Multi-Region Connect
+      InstanceArn: !GetAtt PrimaryConnectInstance.Arn
+      Status: ACTIVE
+
+  # Lambda for health check and failover
+  HealthCheckLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ConnectFailoverPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - connect:UpdateTrafficDistribution
+                  - connect:DescribeTrafficDistributionGroup
+                Resource: !GetAtt ConnectTrafficDistributionGroup.Arn
+
+  ConnectHealthCheckLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt HealthCheckLambdaRole.Arn
+      Runtime: nodejs14.x
+      Timeout: 30
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          
+          exports.handler = async (event) => {
+            const connect = new AWS.Connect();
+            const primaryRegion = process.env.PRIMARY_REGION;
+            const secondaryRegion = process.env.SECONDARY_REGION;
+            const tdgId = process.env.TDG_ID;
+            
+            try {
+              // Check primary region health
+              const primaryConnect = new AWS.Connect({ region: primaryRegion });
+              let primaryHealthy = true;
+              
+              try {
+                // Try operation to verify primary region health
+                await primaryConnect.listInstances().promise();
+              } catch (error) {
+                console.log(`Primary region ${primaryRegion} is unhealthy: ${error.message}`);
+                primaryHealthy = false;
+              }
+              
+              // Get current traffic distribution
+              const tdgResponse = await connect.describeTrafficDistributionGroup({
+                TrafficDistributionGroupId: tdgId
+              }).promise();
+              
+              let currentDistribution = tdgResponse.TrafficDistributionGroup.DistributionConfiguration;
+              
+              // Determine if failover is needed
+              if (!primaryHealthy && currentDistribution.Distribution[0].Percentage > 0) {
+                // Failover to secondary
+                console.log(`Failing over to secondary region ${secondaryRegion}`);
+                await connect.updateTrafficDistribution({
+                  Id: tdgId,
+                  TrafficDistributionConfig: {
+                    Distribution: [
+                      {
+                        Region: primaryRegion,
+                        Percentage: 0
+                      },
+                      {
+                        Region: secondaryRegion,
+                        Percentage: 100
+                      }
+                    ]
+                  }
+                }).promise();
+                return { status: 'FAILOVER_INITIATED', primaryHealthy };
+              } else if (primaryHealthy && currentDistribution.Distribution[0].Percentage < 100) {
+                // Recover back to primary
+                console.log(`Recovering back to primary region ${primaryRegion}`);
+                await connect.updateTrafficDistribution({
+                  Id: tdgId,
+                  TrafficDistributionConfig: {
+                    Distribution: [
+                      {
+                        Region: primaryRegion,
+                        Percentage: 100
+                      },
+                      {
+                        Region: secondaryRegion,
+                        Percentage: 0
+                      }
+                    ]
+                  }
+                }).promise();
+                return { status: 'RECOVERY_INITIATED', primaryHealthy };
+              }
+              
+              return { status: 'NO_CHANGE_NEEDED', primaryHealthy };
+            } catch (error) {
+              console.error('Error in failover check:', error);
+              return { status: 'ERROR', error: error.message };
+            }
+          };
+      Environment:
+        Variables:
+          PRIMARY_REGION: !Ref PrimaryRegion
+          SECONDARY_REGION: !Ref SecondaryRegion
+          TDG_ID: !Ref ConnectTrafficDistributionGroup
+
+  # Scheduled Event to trigger health check Lambda
+  HealthCheckScheduledRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Scheduled rule to check Amazon Connect health and trigger failover if needed
+      ScheduleExpression: rate(1 minute)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ConnectHealthCheckLambda.Arn
+          Id: HealthCheckTarget
+
+  HealthCheckLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ConnectHealthCheckLambda
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt HealthCheckScheduledRule.Arn
+
+Outputs:
+  PrimaryConnectInstanceId:
+    Description: ID of the primary Amazon Connect instance
+    Value: !Ref PrimaryConnectInstance
+
+  SecondaryConnectInstanceId:
+    Description: ID of the secondary Amazon Connect instance
+    Value: !Ref SecondaryConnectInstance
+
+  TrafficDistributionGroupId:
+    Description: ID of the Connect Traffic Distribution Group
+    Value: !Ref ConnectTrafficDistributionGroup
+
+  PrimaryVPNGatewayId:
+    Description: ID of the primary VPN Gateway for GCP interconnect
+    Value: !Ref PrimaryVPNGateway
+
+  SecondaryVPNGatewayId:
+    Description: ID of the secondary VPN Gateway for GCP interconnect
+    Value: !Ref SecondaryVPNGateway

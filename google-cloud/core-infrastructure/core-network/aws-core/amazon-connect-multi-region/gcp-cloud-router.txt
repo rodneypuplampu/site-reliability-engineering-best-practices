@@ -1,0 +1,169 @@
+# Google Cloud Router Configuration for Amazon Connect Multi-Region Setup
+# This configuration sets up Google Cloud as the network core for the interconnection
+
+resources:
+- name: gcp-network
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+    description: Network for Amazon Connect Multi-Region interconnect
+
+- name: connect-subnet-primary
+  type: compute.v1.subnetwork
+  properties:
+    network: $(ref.gcp-network.selfLink)
+    region: us-central1
+    ipCidrRange: 192.168.1.0/24
+    description: Subnet for Amazon Connect primary region interconnect
+
+- name: connect-subnet-secondary
+  type: compute.v1.subnetwork
+  properties:
+    network: $(ref.gcp-network.selfLink)
+    region: us-west1
+    ipCidrRange: 192.168.2.0/24
+    description: Subnet for Amazon Connect secondary region interconnect
+
+# Cloud Routers for AWS-GCP interconnect
+- name: primary-cloud-router
+  type: compute.v1.router
+  properties:
+    network: $(ref.gcp-network.selfLink)
+    region: us-central1
+    description: Cloud Router for primary region
+    bgp:
+      asn: 65001
+      advertiseMode: CUSTOM
+      advertisedGroups:
+      - ALL_SUBNETS
+      advertisedIpRanges:
+      - range: 192.168.1.0/24
+        description: Primary subnet CIDR
+
+- name: secondary-cloud-router
+  type: compute.v1.router
+  properties:
+    network: $(ref.gcp-network.selfLink)
+    region: us-west1
+    description: Cloud Router for secondary region
+    bgp:
+      asn: 65002
+      advertiseMode: CUSTOM
+      advertisedGroups:
+      - ALL_SUBNETS
+      advertisedIpRanges:
+      - range: 192.168.2.0/24
+        description: Secondary subnet CIDR
+
+# Partner Interconnect for AWS Direct Connect Integration
+- name: primary-interconnect-attachment
+  type: compute.v1.interconnectAttachment
+  properties:
+    router: $(ref.primary-cloud-router.selfLink)
+    region: us-central1
+    type: PARTNER
+    edgeAvailabilityDomain: AVAILABILITY_DOMAIN_1
+    description: Partner interconnect for AWS primary region
+    bandwidth: BPS_1G
+
+- name: secondary-interconnect-attachment
+  type: compute.v1.interconnectAttachment
+  properties:
+    router: $(ref.secondary-cloud-router.selfLink)
+    region: us-west1
+    type: PARTNER
+    edgeAvailabilityDomain: AVAILABILITY_DOMAIN_1
+    description: Partner interconnect for AWS secondary region
+    bandwidth: BPS_1G
+
+# Firewall rules
+- name: allow-aws-traffic
+  type: compute.v1.firewall
+  properties:
+    network: $(ref.gcp-network.selfLink)
+    description: Allow traffic from AWS VPCs
+    priority: 1000
+    direction: INGRESS
+    sourceRanges:
+    - 10.0.0.0/16  # Primary AWS VPC CIDR
+    - 10.1.0.0/16  # Secondary AWS VPC CIDR
+    allowed:
+    - IPProtocol: tcp
+    - IPProtocol: udp
+    - IPProtocol: icmp
+
+# Health check probe for monitoring interconnect status
+- name: interconnect-health-check
+  type: compute.v1.healthCheck
+  properties:
+    type: TCP
+    tcpHealthCheck:
+      port: 22
+    checkIntervalSec: 5
+    timeoutSec: 5
+    unhealthyThreshold: 2
+    healthyThreshold: 2
+
+# Cloud Monitoring alert policy for interconnect status
+- name: interconnect-alert-policy
+  type: monitoring.v3.alertPolicy
+  properties:
+    displayName: Interconnect Status Alert
+    documentation:
+      content: Alert for AWS-GCP Interconnect issues
+      mimeType: text/markdown
+    enabled: true
+    conditions:
+    - displayName: Interconnect Down
+      conditionThreshold:
+        filter: 'resource.type = "interconnect_attachment" AND metric.type = "interconnect.googleapis.com/attachment/status"'
+        comparison: COMPARISON_GT
+        thresholdValue: 0
+        duration: 60s
+        trigger:
+          count: 1
+    alertStrategy:
+      autoClose: 604800s
+    notificationChannels:
+    - projects/${PROJECT_ID}/notificationChannels/${NOTIFICATION_CHANNEL_ID}
+    
+# High Availability VPN as backup to interconnect
+- name: ha-vpn-gateway
+  type: compute.v1.vpnGateway
+  properties:
+    network: $(ref.gcp-network.selfLink)
+    region: us-central1
+    description: HA VPN gateway for backup connectivity
+
+- name: ha-vpn-primary-aws
+  type: compute.v1.vpnTunnel
+  properties:
+    region: us-central1
+    vpnGateway: $(ref.ha-vpn-gateway.selfLink)
+    peerIp: ${AWS_PRIMARY_VPN_IP}
+    sharedSecret: ${VPN_SHARED_SECRET}
+    router: $(ref.primary-cloud-router.selfLink)
+    description: VPN tunnel to AWS primary region
+
+- name: ha-vpn-secondary-aws
+  type: compute.v1.vpnTunnel
+  properties:
+    region: us-central1
+    vpnGateway: $(ref.ha-vpn-gateway.selfLink)
+    peerIp: ${AWS_SECONDARY_VPN_IP}
+    sharedSecret: ${VPN_SHARED_SECRET}
+    router: $(ref.primary-cloud-router.selfLink)
+    description: VPN tunnel to AWS secondary region
+
+outputs:
+- name: primary_pairing_key
+  value: $(ref.primary-interconnect-attachment.pairingKey)
+  description: Pairing key for primary region AWS Direct Connect
+
+- name: secondary_pairing_key
+  value: $(ref.secondary-interconnect-attachment.pairingKey)
+  description: Pairing key for secondary region AWS Direct Connect
+
+- name: vpn_gateway_ip_addresses
+  value: $(ref.ha-vpn-gateway.ipAddresses)
+  description: IP addresses for the HA VPN gateway
