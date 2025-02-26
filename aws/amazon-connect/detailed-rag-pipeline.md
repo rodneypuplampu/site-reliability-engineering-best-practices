@@ -15,6 +15,44 @@ This guide provides detailed, step-by-step instructions for implementing a Retri
 9. [Security Implementation](#9-security-implementation)
 10. [Testing and Validation](#10-testing-and-validation)
 
+## Architecture
+```mermaid
+flowchart TB
+    subgraph "Data Ingestion"
+        S3[S3 Document Bucket] --> Lambda1[Document Processor Lambda]
+        Lambda1 --> SQS[Processing Queue]
+    end
+
+    subgraph "Document Processing"
+        SQS --> Lambda2[Chunking & Embedding Lambda]
+        Lambda2 --> DynamoDB[(DynamoDB Vector Store)]
+        Lambda2 --> Kendra[AWS Kendra Index]
+    end
+
+    subgraph "MLOps Training Pipeline"
+        DynamoDB --> Step1[Data Validation]
+        Step1 --> Step2[Feature Engineering]
+        Step2 --> Step3[Model Training]
+        Step3 --> Step4[Model Evaluation]
+        Step4 --> Step5[Model Registration]
+    end
+
+    subgraph "Inference Pipeline"
+        User[User Query] --> API[API Gateway]
+        API --> Lambda3[Query Processor Lambda]
+        Lambda3 --> DynamoDB
+        Lambda3 --> Kendra
+        Lambda3 --> Bedrock[Amazon Bedrock]
+        Bedrock --> Lambda3
+        Lambda3 --> User
+    end
+
+    DynamoDB -.-> Monitoring[CloudWatch Monitoring]
+    Bedrock -.-> Monitoring
+    Lambda1 -.-> Monitoring
+    Lambda2 -.-> Monitoring
+    Lambda3 -.-> Monitoring
+
 ## 1. Environment Setup
 
 ### 1.1 AWS Account Configuration
@@ -30,7 +68,7 @@ This guide provides detailed, step-by-step instructions for implementing a Retri
    - AmazonSQSFullAccess
    - IAMFullAccess
    - CloudWatchFullAccess
-
+```
 ### 1.2 Development Environment Setup
 
 1. Install required tools:
