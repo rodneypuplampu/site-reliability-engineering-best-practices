@@ -26,12 +26,7 @@ This repository contains Terraform configurations for setting up an active-activ
 
 ## Implementation Steps
 
-### Step 1: Clone the Repository and Configure Variables
-
-```bash
-git clone [repository-url]
-cd amazon-connect-active-active
-```
+### Step 1: Create the TF Code.
 
 Edit the `terraform.tfvars` file to set your specific variables:
 
