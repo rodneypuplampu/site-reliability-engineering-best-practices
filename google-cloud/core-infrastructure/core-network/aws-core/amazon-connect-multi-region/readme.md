@@ -22,7 +22,7 @@ This repository contains Terraform configurations for setting up an active-activ
 - GCP account (if implementing the interconnect through GCP)
 - Terraform 0.14+ installed
 - AWS CLI configured with appropriate credentials
-- Basic knowledge of Amazon Connect, AWS networking, and Terraform
+
 
 ## Implementation Steps
 
