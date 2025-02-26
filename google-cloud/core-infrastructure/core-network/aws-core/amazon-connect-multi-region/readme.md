@@ -53,11 +53,11 @@ graph TB
     Z[End Users] --> D
     Z --> L
     
-    style A fill:#66CCFF
-    style I fill:#66CCFF
-    style F fill:#FFCC66
-    style P fill:#99CC99
-    style T fill:#CC99FF
+    style A fill:#808080
+    style I fill:#808080
+    style F fill:#808080
+    style P fill:#808080
+    style T fill:#808080
 ```
 
 ## Key Components
