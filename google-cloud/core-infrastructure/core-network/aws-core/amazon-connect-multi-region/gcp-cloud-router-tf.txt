@@ -1,0 +1,247 @@
+## Google Cloud Router Configuration for Amazon Connect Multi-Region - Terraform
+
+# Configure Google Cloud provider
+provider "google" {
+  project = var.gcp_project_id
+}
+
+# Variables
+variable "gcp_project_id" {
+  type        = string
+  description = "Google Cloud Project ID"
+}
+
+variable "aws_primary_vpc_cidr" {
+  type        = string
+  default     = "10.0.0.0/16"
+  description = "Primary AWS VPC CIDR"
+}
+
+variable "aws_secondary_vpc_cidr" {
+  type        = string
+  default     = "10.1.0.0/16"
+  description = "Secondary AWS VPC CIDR"
+}
+
+variable "vpn_shared_secret" {
+  type        = string
+  sensitive   = true
+  description = "Shared secret for VPN tunnels"
+}
+
+variable "aws_primary_vpn_ip" {
+  type        = string
+  description = "AWS Primary VPN Gateway IP"
+}
+
+variable "aws_secondary_vpn_ip" {
+  type        = string
+  description = "AWS Secondary VPN Gateway IP"
+}
+
+variable "notification_channel_id" {
+  type        = string
+  description = "GCP Notification Channel ID for alerts"
+}
+
+# Main VPC Network
+resource "google_compute_network" "gcp_network" {
+  name                    = "connect-interconnect-network"
+  auto_create_subnetworks = false
+  description             = "Network for Amazon Connect Multi-Region interconnect"
+}
+
+# Subnets
+resource "google_compute_subnetwork" "connect_subnet_primary" {
+  name          = "connect-subnet-primary"
+  network       = google_compute_network.gcp_network.id
+  region        = "us-central1"
+  ip_cidr_range = "192.168.1.0/24"
+  description   = "Subnet for Amazon Connect primary region interconnect"
+}
+
+resource "google_compute_subnetwork" "connect_subnet_secondary" {
+  name          = "connect-subnet-secondary"
+  network       = google_compute_network.gcp_network.id
+  region        = "us-west1"
+  ip_cidr_range = "192.168.2.0/24"
+  description   = "Subnet for Amazon Connect secondary region interconnect"
+}
+
+# Cloud Routers
+resource "google_compute_router" "primary_cloud_router" {
+  name        = "primary-cloud-router"
+  network     = google_compute_network.gcp_network.id
+  region      = "us-central1"
+  description = "Cloud Router for primary region"
+  
+  bgp {
+    asn = 65001
+    advertise_mode    = "CUSTOM"
+    advertised_groups = ["ALL_SUBNETS"]
+    
+    advertised_ip_ranges {
+      range       = "192.168.1.0/24"
+      description = "Primary subnet CIDR"
+    }
+  }
+}
+
+resource "google_compute_router" "secondary_cloud_router" {
+  name        = "secondary-cloud-router"
+  network     = google_compute_network.gcp_network.id
+  region      = "us-west1"
+  description = "Cloud Router for secondary region"
+  
+  bgp {
+    asn = 65002
+    advertise_mode    = "CUSTOM"
+    advertised_groups = ["ALL_SUBNETS"]
+    
+    advertised_ip_ranges {
+      range       = "192.168.2.0/24"
+      description = "Secondary subnet CIDR"
+    }
+  }
+}
+
+# Partner Interconnect Attachments
+resource "google_compute_interconnect_attachment" "primary_interconnect" {
+  name                     = "primary-interconnect-attachment"
+  router                   = google_compute_router.primary_cloud_router.id
+  region                   = "us-central1"
+  type                     = "PARTNER"
+  edge_availability_domain = "AVAILABILITY_DOMAIN_1"
+  description              = "Partner interconnect for AWS primary region"
+  bandwidth                = "BPS_1G"
+}
+
+resource "google_compute_interconnect_attachment" "secondary_interconnect" {
+  name                     = "secondary-interconnect-attachment"
+  router                   = google_compute_router.secondary_cloud_router.id
+  region                   = "us-west1"
+  type                     = "PARTNER"
+  edge_availability_domain = "AVAILABILITY_DOMAIN_1"
+  description              = "Partner interconnect for AWS secondary region" 
+  bandwidth                = "BPS_1G"
+}
+
+# Firewall Rules
+resource "google_compute_firewall" "allow_aws_traffic" {
+  name        = "allow-aws-traffic"
+  network     = google_compute_network.gcp_network.id
+  description = "Allow traffic from AWS VPCs"
+  priority    = 1000
+  direction   = "INGRESS"
+  
+  source_ranges = [
+    var.aws_primary_vpc_cidr,
+    var.aws_secondary_vpc_cidr
+  ]
+  
+  allow {
+    protocol = "tcp"
+  }
+  
+  allow {
+    protocol = "udp"
+  }
+  
+  allow {
+    protocol = "icmp"
+  }
+}
+
+# Health Check for Monitoring
+resource "google_compute_health_check" "interconnect_health_check" {
+  name               = "interconnect-health-check"
+  check_interval_sec = 5
+  timeout_sec        = 5
+  healthy_threshold  = 2
+  unhealthy_threshold = 2
+  
+  tcp_health_check {
+    port = 22
+  }
+}
+
+# Monitoring Alert Policy
+resource "google_monitoring_alert_policy" "interconnect_alert" {
+  display_name = "Interconnect Status Alert"
+  
+  documentation {
+    content   = "Alert for AWS-GCP Interconnect issues"
+    mime_type = "text/markdown"
+  }
+  
+  enabled = true
+  
+  conditions {
+    display_name = "Interconnect Down"
+    
+    condition_threshold {
+      filter          = "resource.type = \"interconnect_attachment\" AND metric.type = \"interconnect.googleapis.com/attachment/status\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "60s"
+      
+      trigger {
+        count = 1
+      }
+    }
+  }
+  
+  alert_strategy {
+    auto_close = "604800s"
+  }
+  
+  notification_channels = [
+    "projects/${var.gcp_project_id}/notificationChannels/${var.notification_channel_id}"
+  ]
+}
+
+# High Availability VPN as backup
+resource "google_compute_vpn_gateway" "ha_vpn_gateway" {
+  name        = "ha-vpn-gateway"
+  network     = google_compute_network.gcp_network.id
+  region      = "us-central1"
+  description = "HA VPN gateway for backup connectivity"
+}
+
+resource "google_compute_vpn_tunnel" "ha_vpn_primary_aws" {
+  name          = "ha-vpn-primary-aws"
+  region        = "us-central1"
+  vpn_gateway   = google_compute_vpn_gateway.ha_vpn_gateway.id
+  peer_ip       = var.aws_primary_vpn_ip
+  shared_secret = var.vpn_shared_secret
+  router        = google_compute_router.primary_cloud_router.id
+  description   = "VPN tunnel to AWS primary region"
+}
+
+resource "google_compute_vpn_tunnel" "ha_vpn_secondary_aws" {
+  name          = "ha-vpn-secondary-aws"
+  region        = "us-central1"
+  vpn_gateway   = google_compute_vpn_gateway.ha_vpn_gateway.id
+  peer_ip       = var.aws_secondary_vpn_ip
+  shared_secret = var.vpn_shared_secret
+  router        = google_compute_router.primary_cloud_router.id
+  description   = "VPN tunnel to AWS secondary region"
+}
+
+# Outputs
+output "primary_pairing_key" {
+  value       = google_compute_interconnect_attachment.primary_interconnect.pairing_key
+  description = "Pairing key for primary region AWS Direct Connect"
+  sensitive   = true
+}
+
+output "secondary_pairing_key" {
+  value       = google_compute_interconnect_attachment.secondary_interconnect.pairing_key
+  description = "Pairing key for secondary region AWS Direct Connect"
+  sensitive   = true
+}
+
+output "vpn_gateway_ip_addresses" {
+  value       = google_compute_vpn_gateway.ha_vpn_gateway.ip_address
+  description = "IP addresses for the HA VPN gateway"
+}

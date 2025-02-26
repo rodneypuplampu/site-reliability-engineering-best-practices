@@ -1,0 +1,370 @@
+## Amazon Connect Multi-Region Configuration - Terraform
+
+# Configure AWS Provider for multi-region deployment
+provider "aws" {
+  alias  = "primary"
+  region = var.primary_region
+}
+
+provider "aws" {
+  alias  = "secondary"
+  region = var.secondary_region
+}
+
+# Variables
+variable "primary_region" {
+  type        = string
+  default     = "us-east-1"
+  description = "Primary AWS region for Amazon Connect"
+  validation {
+    condition     = contains(["us-east-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-northeast-1"], var.primary_region)
+    error_message = "Primary region must be one of: us-east-1, us-west-2, eu-west-1, eu-central-1, ap-northeast-1."
+  }
+}
+
+variable "secondary_region" {
+  type        = string
+  default     = "us-west-2"
+  description = "Secondary AWS region for Amazon Connect failover"
+  validation {
+    condition     = contains(["us-east-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-northeast-1"], var.secondary_region)
+    error_message = "Secondary region must be one of: us-east-1, us-west-2, eu-west-1, eu-central-1, ap-northeast-1."
+  }
+}
+
+variable "connect_instance_alias" {
+  type        = string
+  default     = "my-connect-instance"
+  description = "Alias for the Amazon Connect instance"
+}
+
+variable "connect_phone_number" {
+  type        = string
+  description = "Phone number to claim for Amazon Connect (E.164 format)"
+}
+
+variable "gcp_project_id" {
+  type        = string
+  description = "Google Cloud Project ID for the interconnect"
+}
+
+variable "vpc_cidr_primary" {
+  type        = string
+  default     = "10.0.0.0/16"
+  description = "CIDR block for the primary VPC"
+}
+
+variable "vpc_cidr_secondary" {
+  type        = string
+  default     = "10.1.0.0/16"
+  description = "CIDR block for the secondary VPC"
+}
+
+### PRIMARY REGION RESOURCES
+
+# Primary VPC
+resource "aws_vpc" "primary" {
+  provider             = aws.primary
+  cidr_block           = var.vpc_cidr_primary
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-primary-vpc"
+  }
+}
+
+# Primary Subnets
+resource "aws_subnet" "primary_subnet_1" {
+  provider          = aws.primary
+  vpc_id            = aws_vpc.primary.id
+  cidr_block        = cidrsubnet(var.vpc_cidr_primary, 8, 0)
+  availability_zone = data.aws_availability_zones.primary.names[0]
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-primary-subnet-1"
+  }
+}
+
+resource "aws_subnet" "primary_subnet_2" {
+  provider          = aws.primary
+  vpc_id            = aws_vpc.primary.id
+  cidr_block        = cidrsubnet(var.vpc_cidr_primary, 8, 1)
+  availability_zone = data.aws_availability_zones.primary.names[1]
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-primary-subnet-2"
+  }
+}
+
+# Data source for AZs
+data "aws_availability_zones" "primary" {
+  provider = aws.primary
+  state    = "available"
+}
+
+data "aws_availability_zones" "secondary" {
+  provider = aws.secondary
+  state    = "available"
+}
+
+# Amazon Connect Instance - Primary
+resource "aws_connect_instance" "primary" {
+  provider      = aws.primary
+  instance_alias = "${var.connect_instance_alias}-primary"
+  
+  inbound_calls_enabled  = true
+  outbound_calls_enabled = true
+  contact_flow_logs_enabled = true
+}
+
+# Primary Connect Phone Number
+resource "aws_connect_phone_number" "primary" {
+  provider    = aws.primary
+  target_arn  = aws_connect_instance.primary.arn
+  country_code = "US"
+  type        = "DID"
+  description = "Primary Connect Phone Number"
+}
+
+### SECONDARY REGION RESOURCES
+
+# Secondary VPC
+resource "aws_vpc" "secondary" {
+  provider             = aws.secondary
+  cidr_block           = var.vpc_cidr_secondary
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-secondary-vpc"
+  }
+}
+
+# Secondary Subnets
+resource "aws_subnet" "secondary_subnet_1" {
+  provider          = aws.secondary
+  vpc_id            = aws_vpc.secondary.id
+  cidr_block        = cidrsubnet(var.vpc_cidr_secondary, 8, 0)
+  availability_zone = data.aws_availability_zones.secondary.names[0]
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-secondary-subnet-1"
+  }
+}
+
+resource "aws_subnet" "secondary_subnet_2" {
+  provider          = aws.secondary
+  vpc_id            = aws_vpc.secondary.id
+  cidr_block        = cidrsubnet(var.vpc_cidr_secondary, 8, 1)
+  availability_zone = data.aws_availability_zones.secondary.names[1]
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-secondary-subnet-2"
+  }
+}
+
+# Amazon Connect Instance - Secondary
+resource "aws_connect_instance" "secondary" {
+  provider       = aws.secondary
+  instance_alias = "${var.connect_instance_alias}-secondary"
+  
+  inbound_calls_enabled   = true
+  outbound_calls_enabled  = true
+  contact_flow_logs_enabled = true
+}
+
+# VPN Gateway for GCP Interconnect - Primary Region
+resource "aws_vpn_gateway" "primary" {
+  provider = aws.primary
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-primary-vpn-gateway"
+  }
+}
+
+resource "aws_vpn_gateway_attachment" "primary" {
+  provider       = aws.primary
+  vpc_id         = aws_vpc.primary.id
+  vpn_gateway_id = aws_vpn_gateway.primary.id
+}
+
+# VPN Gateway for GCP Interconnect - Secondary Region
+resource "aws_vpn_gateway" "secondary" {
+  provider = aws.secondary
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-secondary-vpn-gateway"
+  }
+}
+
+resource "aws_vpn_gateway_attachment" "secondary" {
+  provider       = aws.secondary
+  vpc_id         = aws_vpc.secondary.id
+  vpn_gateway_id = aws_vpn_gateway.secondary.id
+}
+
+# Route Tables
+resource "aws_route_table" "primary" {
+  provider = aws.primary
+  vpc_id   = aws_vpc.primary.id
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-primary-route-table"
+  }
+}
+
+resource "aws_route_table" "secondary" {
+  provider = aws.secondary
+  vpc_id   = aws_vpc.secondary.id
+  
+  tags = {
+    Name = "${var.connect_instance_alias}-secondary-route-table"
+  }
+}
+
+# Route Propagation
+resource "aws_vpn_gateway_route_propagation" "primary" {
+  provider       = aws.primary
+  route_table_id = aws_route_table.primary.id
+  vpn_gateway_id = aws_vpn_gateway.primary.id
+  
+  depends_on = [aws_vpn_gateway_attachment.primary]
+}
+
+resource "aws_vpn_gateway_route_propagation" "secondary" {
+  provider       = aws.secondary
+  route_table_id = aws_route_table.secondary.id
+  vpn_gateway_id = aws_vpn_gateway.secondary.id
+  
+  depends_on = [aws_vpn_gateway_attachment.secondary]
+}
+
+# Connect Traffic Distribution Group for Multi-Region
+resource "aws_connect_traffic_distribution_group" "main" {
+  provider    = aws.primary
+  name        = "${var.connect_instance_alias}-tdg"
+  description = "Traffic Distribution Group for Multi-Region Connect"
+  instance_arn = aws_connect_instance.primary.arn
+  status      = "ACTIVE"
+}
+
+# Lambda for health check and failover
+resource "aws_iam_role" "health_check_lambda" {
+  provider = aws.primary
+  name     = "ConnectHealthCheckLambdaRole"
+  
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+  
+  managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+}
+
+resource "aws_iam_policy" "connect_failover" {
+  provider    = aws.primary
+  name        = "ConnectFailoverPolicy"
+  description = "Policy for Connect failover lambda"
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "connect:UpdateTrafficDistribution",
+          "connect:DescribeTrafficDistributionGroup"
+        ]
+        Resource = aws_connect_traffic_distribution_group.main.arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "connect_failover" {
+  provider   = aws.primary
+  role       = aws_iam_role.health_check_lambda.name
+  policy_arn = aws_iam_policy.connect_failover.arn
+}
+
+resource "aws_lambda_function" "connect_health_check" {
+  provider      = aws.primary
+  function_name = "ConnectHealthCheckLambda"
+  role          = aws_iam_role.health_check_lambda.arn
+  handler       = "index.handler"
+  runtime       = "nodejs14.x"
+  timeout       = 30
+  
+  environment {
+    variables = {
+      PRIMARY_REGION = var.primary_region
+      SECONDARY_REGION = var.secondary_region
+      TDG_ID = aws_connect_traffic_distribution_group.main.id
+    }
+  }
+  
+  filename = "lambda_function.zip"
+  source_code_hash = filebase64sha256("lambda_function.zip")
+  
+  # Note: You'd need to create the lambda_function.zip file containing the code
+  # The code would be similar to the one in the CloudFormation template
+}
+
+# Scheduled Event to trigger health check Lambda
+resource "aws_cloudwatch_event_rule" "health_check" {
+  provider    = aws.primary
+  name        = "ConnectHealthCheckRule"
+  description = "Scheduled rule to check Amazon Connect health and trigger failover if needed"
+  schedule_expression = "rate(1 minute)"
+}
+
+resource "aws_cloudwatch_event_target" "health_check" {
+  provider  = aws.primary
+  rule      = aws_cloudwatch_event_rule.health_check.name
+  target_id = "HealthCheckTarget"
+  arn       = aws_lambda_function.connect_health_check.arn
+}
+
+resource "aws_lambda_permission" "health_check" {
+  provider      = aws.primary
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.connect_health_check.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.health_check.arn
+}
+
+# Outputs
+output "primary_connect_instance_id" {
+  description = "ID of the primary Amazon Connect instance"
+  value       = aws_connect_instance.primary.id
+}
+
+output "secondary_connect_instance_id" {
+  description = "ID of the secondary Amazon Connect instance"
+  value       = aws_connect_instance.secondary.id
+}
+
+output "traffic_distribution_group_id" {
+  description = "ID of the Connect Traffic Distribution Group"
+  value       = aws_connect_traffic_distribution_group.main.id
+}
+
+output "primary_vpn_gateway_id" {
+  description = "ID of the primary VPN Gateway for GCP interconnect"
+  value       = aws_vpn_gateway.primary.id
+}
+
+output "secondary_vpn_gateway_id" {
+  description = "ID of the secondary VPN Gateway for GCP interconnect"
+  value       = aws_vpn_gateway.secondary.id
+}

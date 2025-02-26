@@ -1,0 +1,687 @@
+## Amazon Connect Active-Active with Bidirectional Failover - Terraform
+
+# Configure AWS Provider for multi-region deployment
+provider "aws" {
+  alias  = "primary"
+  region = var.primary_region
+}
+
+provider "aws" {
+  alias  = "secondary"
+  region = var.secondary_region
+}
+
+# Variables
+variable "primary_region" {
+  type        = string
+  default     = "us-east-1"
+  description = "Primary AWS region for Amazon Connect"
+  validation {
+    condition     = contains(["us-east-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-northeast-1"], var.primary_region)
+    error_message = "Primary region must be one of: us-east-1, us-west-2, eu-west-1, eu-central-1, ap-northeast-1."
+  }
+}
+
+variable "secondary_region" {
+  type        = string
+  default     = "us-west-2"
+  description = "Secondary AWS region for Amazon Connect"
+  validation {
+    condition     = contains(["us-east-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-northeast-1"], var.secondary_region)
+    error_message = "Secondary region must be one of: us-east-1, us-west-2, eu-west-1, eu-central-1, ap-northeast-1."
+  }
+}
+
+variable "primary_connect_instance_alias" {
+  type        = string
+  description = "Alias for the primary Amazon Connect instance"
+}
+
+variable "secondary_connect_instance_alias" {
+  type        = string
+  description = "Alias for the secondary Amazon Connect instance"
+}
+
+variable "primary_phone_number" {
+  type        = string
+  description = "Phone number for primary Connect instance (E.164 format)"
+}
+
+variable "secondary_phone_number" {
+  type        = string
+  description = "Phone number for secondary Connect instance (E.164 format)"
+}
+
+variable "vpc_cidr_primary" {
+  type        = string
+  default     = "10.0.0.0/16"
+  description = "CIDR block for the primary VPC"
+}
+
+variable "vpc_cidr_secondary" {
+  type        = string
+  default     = "10.1.0.0/16"
+  description = "CIDR block for the secondary VPC"
+}
+
+variable "default_traffic_distribution" {
+  type = object({
+    primary_percentage   = number
+    secondary_percentage = number
+  })
+  default = {
+    primary_percentage   = 50
+    secondary_percentage = 50
+  }
+  description = "Default traffic distribution between primary and secondary regions (must sum to 100)"
+  
+  validation {
+    condition     = var.default_traffic_distribution.primary_percentage + var.default_traffic_distribution.secondary_percentage == 100
+    error_message = "Traffic distribution percentages must sum to 100."
+  }
+}
+
+# Data sources for AZs
+data "aws_availability_zones" "primary" {
+  provider = aws.primary
+  state    = "available"
+}
+
+data "aws_availability_zones" "secondary" {
+  provider = aws.secondary
+  state    = "available"
+}
+
+### PRIMARY REGION RESOURCES
+
+# Primary VPC
+resource "aws_vpc" "primary" {
+  provider             = aws.primary
+  cidr_block           = var.vpc_cidr_primary
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  
+  tags = {
+    Name = "${var.primary_connect_instance_alias}-vpc"
+  }
+}
+
+# Primary Subnets
+resource "aws_subnet" "primary_subnet_1" {
+  provider          = aws.primary
+  vpc_id            = aws_vpc.primary.id
+  cidr_block        = cidrsubnet(var.vpc_cidr_primary, 8, 0)
+  availability_zone = data.aws_availability_zones.primary.names[0]
+  
+  tags = {
+    Name = "${var.primary_connect_instance_alias}-subnet-1"
+  }
+}
+
+resource "aws_subnet" "primary_subnet_2" {
+  provider          = aws.primary
+  vpc_id            = aws_vpc.primary.id
+  cidr_block        = cidrsubnet(var.vpc_cidr_primary, 8, 1)
+  availability_zone = data.aws_availability_zones.primary.names[1]
+  
+  tags = {
+    Name = "${var.primary_connect_instance_alias}-subnet-2"
+  }
+}
+
+# Amazon Connect Instance - Primary
+resource "aws_connect_instance" "primary" {
+  provider      = aws.primary
+  instance_alias = var.primary_connect_instance_alias
+  
+  inbound_calls_enabled  = true
+  outbound_calls_enabled = true
+  contact_flow_logs_enabled = true
+}
+
+# Primary Connect Phone Number
+resource "aws_connect_phone_number" "primary" {
+  provider    = aws.primary
+  target_arn  = aws_connect_instance.primary.arn
+  country_code = "US"
+  type        = "DID"
+  description = "Primary Connect Phone Number"
+}
+
+### SECONDARY REGION RESOURCES
+
+# Secondary VPC
+resource "aws_vpc" "secondary" {
+  provider             = aws.secondary
+  cidr_block           = var.vpc_cidr_secondary
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  
+  tags = {
+    Name = "${var.secondary_connect_instance_alias}-vpc"
+  }
+}
+
+# Secondary Subnets
+resource "aws_subnet" "secondary_subnet_1" {
+  provider          = aws.secondary
+  vpc_id            = aws_vpc.secondary.id
+  cidr_block        = cidrsubnet(var.vpc_cidr_secondary, 8, 0)
+  availability_zone = data.aws_availability_zones.secondary.names[0]
+  
+  tags = {
+    Name = "${var.secondary_connect_instance_alias}-subnet-1"
+  }
+}
+
+resource "aws_subnet" "secondary_subnet_2" {
+  provider          = aws.secondary
+  vpc_id            = aws_vpc.secondary.id
+  cidr_block        = cidrsubnet(var.vpc_cidr_secondary, 8, 1)
+  availability_zone = data.aws_availability_zones.secondary.names[1]
+  
+  tags = {
+    Name = "${var.secondary_connect_instance_alias}-subnet-2"
+  }
+}
+
+# Amazon Connect Instance - Secondary
+resource "aws_connect_instance" "secondary" {
+  provider       = aws.secondary
+  instance_alias = var.secondary_connect_instance_alias
+  
+  inbound_calls_enabled   = true
+  outbound_calls_enabled  = true
+  contact_flow_logs_enabled = true
+}
+
+# Secondary Connect Phone Number
+resource "aws_connect_phone_number" "secondary" {
+  provider    = aws.secondary
+  target_arn  = aws_connect_instance.secondary.arn
+  country_code = "US"
+  type        = "DID"
+  description = "Secondary Connect Phone Number"
+}
+
+# Create Replication Groups for synchronization between primary and secondary
+resource "aws_connect_instance_storage_config" "primary_kinesis" {
+  provider                  = aws.primary
+  instance_id               = aws_connect_instance.primary.id
+  resource_type             = "CONTACT_TRACE_RECORDS"
+  storage_type              = "KINESIS_STREAM"
+  
+  kinesis_stream_config {
+    stream_arn = aws_kinesis_stream.primary_ctr_stream.arn
+  }
+}
+
+resource "aws_connect_instance_storage_config" "secondary_kinesis" {
+  provider                  = aws.secondary
+  instance_id               = aws_connect_instance.secondary.id
+  resource_type             = "CONTACT_TRACE_RECORDS"
+  storage_type              = "KINESIS_STREAM"
+  
+  kinesis_stream_config {
+    stream_arn = aws_kinesis_stream.secondary_ctr_stream.arn
+  }
+}
+
+# Kinesis streams for data synchronization
+resource "aws_kinesis_stream" "primary_ctr_stream" {
+  provider          = aws.primary
+  name              = "${var.primary_connect_instance_alias}-ctr-stream"
+  shard_count       = 2
+  retention_period  = 48
+  
+  stream_mode_details {
+    stream_mode = "PROVISIONED"
+  }
+  
+  tags = {
+    Name = "${var.primary_connect_instance_alias}-ctr-stream"
+  }
+}
+
+resource "aws_kinesis_stream" "secondary_ctr_stream" {
+  provider          = aws.secondary
+  name              = "${var.secondary_connect_instance_alias}-ctr-stream"
+  shard_count       = 2
+  retention_period  = 48
+  
+  stream_mode_details {
+    stream_mode = "PROVISIONED"
+  }
+  
+  tags = {
+    Name = "${var.secondary_connect_instance_alias}-ctr-stream"
+  }
+}
+
+# DynamoDB Tables for Agent Data Sync
+resource "aws_dynamodb_table" "agent_states_sync" {
+  provider       = aws.primary
+  name           = "connect-agent-states"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "AgentId"
+  stream_enabled = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
+  
+  attribute {
+    name = "AgentId"
+    type = "S"
+  }
+  
+  replica {
+    region_name = var.secondary_region
+  }
+  
+  ttl {
+    attribute_name = "ExpirationTime"
+    enabled        = true
+  }
+  
+  tags = {
+    Name = "connect-agent-states"
+  }
+}
+
+# Create Traffic Distribution Groups for active-active setup
+resource "aws_connect_traffic_distribution_group" "primary_to_secondary" {
+  provider    = aws.primary
+  name        = "primary-to-secondary-tdg"
+  description = "Traffic Distribution from Primary to Secondary"
+  instance_arn = aws_connect_instance.primary.arn
+  status      = "ACTIVE"
+}
+
+resource "aws_connect_traffic_distribution_group" "secondary_to_primary" {
+  provider    = aws.secondary
+  name        = "secondary-to-primary-tdg"
+  description = "Traffic Distribution from Secondary to Primary"
+  instance_arn = aws_connect_instance.secondary.arn
+  status      = "ACTIVE"
+}
+
+# Configure initial traffic distribution
+resource "aws_connect_traffic_distribution" "primary_distribution" {
+  provider                    = aws.primary
+  id                          = aws_connect_traffic_distribution_group.primary_to_secondary.id
+  traffic_distribution_config = jsonencode({
+    Distribution = [
+      {
+        Region      = var.primary_region,
+        Percentage  = var.default_traffic_distribution.primary_percentage
+      },
+      {
+        Region      = var.secondary_region,
+        Percentage  = var.default_traffic_distribution.secondary_percentage
+      }
+    ]
+  })
+}
+
+resource "aws_connect_traffic_distribution" "secondary_distribution" {
+  provider                    = aws.secondary
+  id                          = aws_connect_traffic_distribution_group.secondary_to_primary.id
+  traffic_distribution_config = jsonencode({
+    Distribution = [
+      {
+        Region      = var.secondary_region,
+        Percentage  = var.default_traffic_distribution.secondary_percentage
+      },
+      {
+        Region      = var.primary_region,
+        Percentage  = var.default_traffic_distribution.primary_percentage
+      }
+    ]
+  })
+}
+
+# Health check and failover Lambda roles
+resource "aws_iam_role" "connect_health_check_role" {
+  provider = aws.primary
+  name     = "ConnectHealthCheckLambdaRole"
+  
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+  
+  managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+}
+
+resource "aws_iam_policy" "connect_failover_policy" {
+  provider    = aws.primary
+  name        = "ConnectFailoverPolicy"
+  description = "Policy for Connect bidirectional failover"
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "connect:UpdateTrafficDistribution",
+          "connect:DescribeTrafficDistributionGroup"
+        ]
+        Resource = [
+          aws_connect_traffic_distribution_group.primary_to_secondary.arn,
+          "arn:aws:connect:${var.secondary_region}:${data.aws_caller_identity.current.account_id}:traffic-distribution-group/${aws_connect_traffic_distribution_group.secondary_to_primary.id}"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = [
+          "connect:DescribeInstance",
+          "connect:ListInstances"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Get current account ID
+data "aws_caller_identity" "current" {
+  provider = aws.primary
+}
+
+resource "aws_iam_role_policy_attachment" "connect_failover_attachment" {
+  provider   = aws.primary
+  role       = aws_iam_role.connect_health_check_role.name
+  policy_arn = aws_iam_policy.connect_failover_policy.arn
+}
+
+# Failover Lambda function for bidirectional health check and failover
+resource "aws_lambda_function" "connect_bidirectional_failover" {
+  provider      = aws.primary
+  function_name = "ConnectBidirectionalFailover"
+  role          = aws_iam_role.connect_health_check_role.arn
+  handler       = "index.handler"
+  runtime       = "nodejs16.x"
+  timeout       = 60
+  
+  environment {
+    variables = {
+      PRIMARY_REGION          = var.primary_region
+      SECONDARY_REGION        = var.secondary_region
+      PRIMARY_TDG_ID          = aws_connect_traffic_distribution_group.primary_to_secondary.id
+      SECONDARY_TDG_ID        = aws_connect_traffic_distribution_group.secondary_to_primary.id
+      PRIMARY_INSTANCE_ID     = aws_connect_instance.primary.id
+      SECONDARY_INSTANCE_ID   = aws_connect_instance.secondary.id
+      DEFAULT_PRIMARY_PERCENT = var.default_traffic_distribution.primary_percentage
+      DEFAULT_SECONDARY_PERCENT = var.default_traffic_distribution.secondary_percentage
+    }
+  }
+  
+  filename = "lambda_function.zip"
+  source_code_hash = filebase64sha256("lambda_function.zip")
+  
+  # The lambda_function.zip would contain the following code:
+  # ```
+  # const AWS = require('aws-sdk');
+  # 
+  # exports.handler = async (event) => {
+  #   // Get environment variables
+  #   const primaryRegion = process.env.PRIMARY_REGION;
+  #   const secondaryRegion = process.env.SECONDARY_REGION;
+  #   const primaryTdgId = process.env.PRIMARY_TDG_ID;
+  #   const secondaryTdgId = process.env.SECONDARY_TDG_ID;
+  #   const primaryInstanceId = process.env.PRIMARY_INSTANCE_ID;
+  #   const secondaryInstanceId = process.env.SECONDARY_INSTANCE_ID;
+  #   const defaultPrimaryPercent = parseInt(process.env.DEFAULT_PRIMARY_PERCENT);
+  #   const defaultSecondaryPercent = parseInt(process.env.DEFAULT_SECONDARY_PERCENT);
+  #   
+  #   // Initialize AWS clients for both regions
+  #   const primaryConnect = new AWS.Connect({ region: primaryRegion });
+  #   const secondaryConnect = new AWS.Connect({ region: secondaryRegion });
+  #   
+  #   // Check health status of both regions
+  #   let primaryHealthy = true;
+  #   let secondaryHealthy = true;
+  #   
+  #   try {
+  #     // Try to describe the primary Connect instance
+  #     await primaryConnect.describeInstance({ InstanceId: primaryInstanceId }).promise();
+  #   } catch (error) {
+  #     console.log(`Primary region ${primaryRegion} is unhealthy: ${error.message}`);
+  #     primaryHealthy = false;
+  #   }
+  #   
+  #   try {
+  #     // Try to describe the secondary Connect instance
+  #     await secondaryConnect.describeInstance({ InstanceId: secondaryInstanceId }).promise();
+  #   } catch (error) {
+  #     console.log(`Secondary region ${secondaryRegion} is unhealthy: ${error.message}`);
+  #     secondaryHealthy = false;
+  #   }
+  #   
+  #   // Get current traffic distributions
+  #   let primaryTdgResponse, secondaryTdgResponse;
+  #   let primaryDistribution, secondaryDistribution;
+  #   
+  #   try {
+  #     primaryTdgResponse = await primaryConnect.describeTrafficDistributionGroup({
+  #       TrafficDistributionGroupId: primaryTdgId
+  #     }).promise();
+  #     primaryDistribution = primaryTdgResponse.TrafficDistributionGroup.DistributionConfig;
+  #   } catch (error) {
+  #     console.error(`Error getting primary TDG: ${error.message}`);
+  #     primaryDistribution = null;
+  #   }
+  #   
+  #   try {
+  #     secondaryTdgResponse = await secondaryConnect.describeTrafficDistributionGroup({
+  #       TrafficDistributionGroupId: secondaryTdgId
+  #     }).promise();
+  #     secondaryDistribution = secondaryTdgResponse.TrafficDistributionGroup.DistributionConfig;
+  #   } catch (error) {
+  #     console.error(`Error getting secondary TDG: ${error.message}`);
+  #     secondaryDistribution = null;
+  #   }
+  #   
+  #   // Handle different health scenarios and adjust traffic accordingly
+  #   if (!primaryHealthy && !secondaryHealthy) {
+  #     // Both regions unhealthy - nothing we can do
+  #     console.log("CRITICAL: Both primary and secondary regions are unhealthy!");
+  #     return { status: 'BOTH_REGIONS_UNHEALTHY' };
+  #   } else if (!primaryHealthy && secondaryHealthy) {
+  #     // Primary unhealthy - route all traffic to secondary
+  #     console.log("Primary region unhealthy - failing over all traffic to secondary region");
+  #     
+  #     try {
+  #       await secondaryConnect.updateTrafficDistribution({
+  #         Id: secondaryTdgId,
+  #         TrafficDistributionConfig: {
+  #           Distribution: [
+  #             { Region: secondaryRegion, Percentage: 100 },
+  #             { Region: primaryRegion, Percentage: 0 }
+  #           ]
+  #         }
+  #       }).promise();
+  #     } catch (error) {
+  #       console.error(`Failed to update secondary traffic distribution: ${error.message}`);
+  #     }
+  #     
+  #     return { status: 'PRIMARY_UNHEALTHY_FAILOVER_TO_SECONDARY' };
+  #   } else if (primaryHealthy && !secondaryHealthy) {
+  #     // Secondary unhealthy - route all traffic to primary
+  #     console.log("Secondary region unhealthy - failing over all traffic to primary region");
+  #     
+  #     try {
+  #       await primaryConnect.updateTrafficDistribution({
+  #         Id: primaryTdgId,
+  #         TrafficDistributionConfig: {
+  #           Distribution: [
+  #             { Region: primaryRegion, Percentage: 100 },
+  #             { Region: secondaryRegion, Percentage: 0 }
+  #           ]
+  #         }
+  #       }).promise();
+  #     } catch (error) {
+  #       console.error(`Failed to update primary traffic distribution: ${error.message}`);
+  #     }
+  #     
+  #     return { status: 'SECONDARY_UNHEALTHY_FAILOVER_TO_PRIMARY' };
+  #   } else {
+  #     // Both regions healthy - restore default distribution if needed
+  #     console.log("Both regions healthy - checking if default distribution needs to be restored");
+  #     
+  #     let updatesNeeded = false;
+  #     
+  #     // Check if primary distribution needs restoration
+  #     if (primaryDistribution) {
+  #       const primaryCurrentDistribution = primaryDistribution.Distribution;
+  #       if (primaryCurrentDistribution[0].Percentage !== defaultPrimaryPercent || 
+  #           primaryCurrentDistribution[1].Percentage !== defaultSecondaryPercent) {
+  #         updatesNeeded = true;
+  #         
+  #         try {
+  #           await primaryConnect.updateTrafficDistribution({
+  #             Id: primaryTdgId,
+  #             TrafficDistributionConfig: {
+  #               Distribution: [
+  #                 { Region: primaryRegion, Percentage: defaultPrimaryPercent },
+  #                 { Region: secondaryRegion, Percentage: defaultSecondaryPercent }
+  #               ]
+  #             }
+  #           }).promise();
+  #           console.log("Restored primary traffic distribution to default");
+  #         } catch (error) {
+  #           console.error(`Failed to restore primary traffic distribution: ${error.message}`);
+  #         }
+  #       }
+  #     }
+  #     
+  #     // Check if secondary distribution needs restoration
+  #     if (secondaryDistribution) {
+  #       const secondaryCurrentDistribution = secondaryDistribution.Distribution;
+  #       if (secondaryCurrentDistribution[0].Percentage !== defaultSecondaryPercent || 
+  #           secondaryCurrentDistribution[1].Percentage !== defaultPrimaryPercent) {
+  #         updatesNeeded = true;
+  #         
+  #         try {
+  #           await secondaryConnect.updateTrafficDistribution({
+  #             Id: secondaryTdgId,
+  #             TrafficDistributionConfig: {
+  #               Distribution: [
+  #                 { Region: secondaryRegion, Percentage: defaultSecondaryPercent },
+  #                 { Region: primaryRegion, Percentage: defaultPrimaryPercent }
+  #               ]
+  #             }
+  #           }).promise();
+  #           console.log("Restored secondary traffic distribution to default");
+  #         } catch (error) {
+  #           console.error(`Failed to restore secondary traffic distribution: ${error.message}`);
+  #         }
+  #       }
+  #     }
+  #     
+  #     return { 
+  #       status: updatesNeeded ? 'DEFAULT_DISTRIBUTION_RESTORED' : 'NO_CHANGES_NEEDED', 
+  #       primaryHealthy, 
+  #       secondaryHealthy 
+  #     };
+  #   }
+  # };
+  # ```
+}
+
+# Set up CloudWatch Event to trigger the failover Lambda
+resource "aws_cloudwatch_event_rule" "connect_health_check" {
+  provider    = aws.primary
+  name        = "ConnectHealthCheckRule"
+  description = "Scheduled rule to check both Connect instances and manage traffic distribution"
+  schedule_expression = "rate(1 minute)"
+}
+
+resource "aws_cloudwatch_event_target" "connect_health_check" {
+  provider  = aws.primary
+  rule      = aws_cloudwatch_event_rule.connect_health_check.name
+  target_id = "ConnectHealthCheckTarget"
+  arn       = aws_lambda_function.connect_bidirectional_failover.arn
+}
+
+resource "aws_lambda_permission" "connect_health_check" {
+  provider      = aws.primary
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.connect_bidirectional_failover.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.connect_health_check.arn
+}
+
+# CloudWatch Alarms for monitoring Connect health
+resource "aws_cloudwatch_metric_alarm" "primary_connect_health" {
+  provider            = aws.primary
+  alarm_name          = "PrimaryConnectHealthAlarm"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "CallsPerInterval"
+  namespace           = "AWS/Connect"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 1
+  alarm_description   = "Alarm when primary Connect instance health is degraded"
+  
+  dimensions = {
+    InstanceId = aws_connect_instance.primary.id
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "secondary_connect_health" {
+  provider            = aws.secondary
+  alarm_name          = "SecondaryConnectHealthAlarm"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "CallsPerInterval"
+  namespace           = "AWS/Connect"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 1
+  alarm_description   = "Alarm when secondary Connect instance health is degraded"
+  
+  dimensions = {
+    InstanceId = aws_connect_instance.secondary.id
+  }
+}
+
+# Outputs
+output "primary_connect_instance_id" {
+  description = "ID of the primary Amazon Connect instance"
+  value       = aws_connect_instance.primary.id
+}
+
+output "secondary_connect_instance_id" {
+  description = "ID of the secondary Amazon Connect instance"
+  value       = aws_connect_instance.secondary.id
+}
+
+output "primary_connect_phone_number" {
+  description = "Phone number for the primary Amazon Connect instance"
+  value       = aws_connect_phone_number.primary.phone_number
+}
+
+output "secondary_connect_phone_number" {
+  description = "Phone number for the secondary Amazon Connect instance"
+  value       = aws_connect_phone_number.secondary.phone_number
+}
+
+output "primary_traffic_distribution_group_id" {
+  description = "ID of the primary Connect Traffic Distribution Group"
+  value       = aws_connect_traffic_distribution_group.primary_to_secondary.id
+}
+
+output "secondary_traffic_distribution_group_id" {
+  description = "ID of the secondary Connect Traffic Distribution Group"
+  value       = aws_connect_traffic_distribution_group.secondary_to_primary.id
+}
