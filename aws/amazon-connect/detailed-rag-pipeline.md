@@ -52,7 +52,7 @@ flowchart TB
     Lambda1 -.-> Monitoring
     Lambda2 -.-> Monitoring
     Lambda3 -.-> Monitoring
-
+```
 ## 1. Environment Setup
 
 ### 1.1 AWS Account Configuration
@@ -68,7 +68,7 @@ flowchart TB
    - AmazonSQSFullAccess
    - IAMFullAccess
    - CloudWatchFullAccess
-```
+
 ### 1.2 Development Environment Setup
 
 1. Install required tools:
