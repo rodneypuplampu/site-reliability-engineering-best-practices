@@ -4,61 +4,7 @@
 
 This repository contains Terraform configurations for setting up an active-active Amazon Connect deployment across two AWS regions with bidirectional failover capabilities. This architecture ensures high availability for contact center operations by allowing both regions to handle calls simultaneously and enabling automatic failover in case of regional outages.
 
-## Architecture Diagram
 
-```mermaid
-graph TB
-    subgraph "Primary Region"
-        A[Primary Connect Instance] --> B[Primary TDG]
-        A --> C[Primary Kinesis Stream]
-        A --> D[Primary Phone Number]
-        E[Primary CloudWatch] --> |Alarms| F[Failover Lambda]
-        G[Primary VPC/Subnets] --> H[Primary VPN Gateway]
-    end
-    
-    subgraph "Secondary Region"
-        I[Secondary Connect Instance] --> J[Secondary TDG]
-        I --> K[Secondary Kinesis Stream]
-        I --> L[Secondary Phone Number]
-        M[Secondary CloudWatch] --> |Alarms| F
-        N[Secondary VPC/Subnets] --> O[Secondary VPN Gateway]
-    end
-    
-    subgraph "Cross-Region Resources"
-        P[DynamoDB Global Table]
-        Q[Lambda Function]
-        R[CloudWatch Event Rule]
-        S[IAM Roles & Policies]
-    end
-    
-    subgraph "Google Cloud Platform"
-        T[GCP Network]
-        U[Primary Interconnect]
-        V[Secondary Interconnect]
-        W[Cloud Routers]
-        X[HA VPN Gateway]
-    end
-    
-    B <--> |Traffic Distribution| J
-    C <--> |Data Replication| K
-    P <--> |Agent State Sync| P
-    H <--> |Direct Connect| U
-    O <--> |Direct Connect| V
-    H <--> |VPN Backup| X
-    O <--> |VPN Backup| X
-    
-    F --> |Update Traffic| B
-    F --> |Update Traffic| J
-    
-    Z[End Users] --> D
-    Z --> L
-    
-    style A fill:#808080
-    style I fill:#808080
-    style F fill:#808080
-    style P fill:#808080
-    style T fill:#808080
-```
 
 ## Key Components
 
