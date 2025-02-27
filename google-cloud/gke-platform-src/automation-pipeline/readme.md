@@ -31,7 +31,7 @@ Before starting the implementation, ensure you have the following:
 
 Our infrastructure automation pipeline is organized as follows:
 
-</artifact>
+```
 infra-automation/
 ├── .github/
 │   └── workflows/
