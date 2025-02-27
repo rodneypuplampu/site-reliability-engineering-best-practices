@@ -95,7 +95,7 @@ infra-automation/
 
 The following diagram illustrates the workflow of our GKE infrastructure automation pipeline:
 
-<artifact type="application/vnd.ant.mermaid">
+```
 flowchart TD
     subgraph "Developer Workflow"
         A[Developer Creates Branch] --> B[Make Infrastructure Changes]
