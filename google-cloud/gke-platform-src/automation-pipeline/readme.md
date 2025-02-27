@@ -2,7 +2,7 @@
 
 This guide provides detailed steps for deploying and managing Google Kubernetes Engine (GKE) by giving github actions direct IAM permissions to push/write infrastructure updates to GCP, 
 
-## THIS IS JUST TO DOCUMENT WHATS POSSIBLE< BUT NOT RECOMMENDED BECAUSE IT IS NOT THE MOST SECURE STRATEGY
+## THIS IS JUST TO DOCUMENT WHATS POSSIBLE BUT NOT RECOMMENDED BECAUSE IT IS NOT THE MOST SECURE STRATEGY
 
 ## Table of Contents
 - [Prerequisites](#prerequisites)
