@@ -1,0 +1,59 @@
+name: Build and Push to GCP
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: your-project-id
+  REGION: us-central1
+  REPOSITORY: my-app
+  POOL_NAME: github-pool
+  PROVIDER_NAME: github-provider
+  SERVICE_ACCOUNT_NAME: github-actions-sa
+
+jobs:
+  build_and_push:
+    name: Build and Push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Authenticate to Google Cloud
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: 'projects/${{ env.PROJECT_ID }}/locations/global/workloadIdentityPools/${{ env.POOL_NAME }}/providers/${{ env.PROVIDER_NAME }}'
+          service_account: '${{ env.SERVICE_ACCOUNT_NAME }}@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+      
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v1'
+      
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+      
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/app:${{ github.sha }} .
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/app:${{ github.sha }}
+      
+      - name: Clone Cloud Source Repository
+        run: |
+          gcloud source repos clone ${{ env.REPOSITORY }} --project=${{ env.PROJECT_ID }}
+      
+      - name: Update deployment configurations
+        run: |
+          cd ${{ env.REPOSITORY }}
+          # Update your deployment configurations with the new image tag
+          sed -i "s|image:.*|image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/app:${{ github.sha }}|g" k8s/deployment.yaml
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add k8s/deployment.yaml
+          git commit -m "Update image to ${{ github.sha }}"
+          git push

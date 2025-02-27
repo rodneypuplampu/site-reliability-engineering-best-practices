@@ -1,0 +1,36 @@
+steps:
+  # Install/setup any necessary tools
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Setup'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y kubectl
+
+  # Deploy to GKE
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud container clusters get-credentials my-cluster --zone us-central1-a --project ${PROJECT_ID}
+        kubectl apply -f k8s/deployment.yaml
+        kubectl apply -f k8s/service.yaml
+
+# Log storage location
+logsBucket: 'gs://${PROJECT_ID}-cloudbuild-logs'
+
+# Service account to use for the build
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/cloudbuild@${PROJECT_ID}.iam.gserviceaccount.com'
+
+# Timeout for the build
+timeout: '1200s'
+
+# Optional notification configurations
+# notifications:
+#  - filter: build.status == Build.Status.SUCCESS
+#    smtpNotification:
+#      recipientEmails:
+#        - "team@example.com"
