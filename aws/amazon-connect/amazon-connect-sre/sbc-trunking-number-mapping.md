@@ -5,7 +5,114 @@
 This document explains how to implement a robust, multi-region call routing architecture using Session Border Controllers (SBCs), AWS Traffic Distribution Groups (TDGs), and Google Cloud Router. This architecture provides enhanced reliability, intelligent load balancing, and seamless failover capabilities for Amazon Connect contact centers operating across multiple regions.
 
 ## Architecture Components
+```mermaid
+flowchart TB
+    subgraph Carriers["Telecommunications Carriers"]
+        carrier1["Carrier 1"]
+        carrier2["Carrier 2"]
+        carrier3["Carrier 3"]
+    end
 
+    subgraph SBCs["Session Border Controllers"]
+        sbc1["Primary SBC"]
+        sbc2["Secondary SBC"]
+        
+        subgraph SBCLogic["SBC Routing Logic"]
+            direction TB
+            phone_map["Phone Number Mapping"]
+            gateway_select["Gateway Selection"]
+            failover["Failover Logic"]
+            
+            phone_map --> gateway_select
+            gateway_select --> failover
+        end
+        
+        sbc1 --- SBCLogic
+        sbc2 --- SBCLogic
+    end
+
+    subgraph GCP["Google Cloud Platform"]
+        gcr["Cloud Router"]
+        
+        subgraph IPGateways["IP Gateways"]
+            gw_east["East Gateway\n10.0.1.100"]
+            gw_west["West Gateway\n10.0.2.100"]
+            gw_central["Central Gateway\n10.0.3.100"]
+        end
+        
+        gcr --- gw_east
+        gcr --- gw_west
+        gcr --- gw_central
+    end
+
+    subgraph AWS["AWS Regions"]
+        subgraph East["US-East-1"]
+            tdg_east["Traffic Distribution Group"]
+            sip_connector_east["SIP Connector"]
+            connect_east["Amazon Connect Instance"]
+            
+            tdg_east --> sip_connector_east
+            sip_connector_east --> connect_east
+        end
+        
+        subgraph West["US-West-2"]
+            tdg_west["Traffic Distribution Group"]
+            sip_connector_west["SIP Connector"]
+            connect_west["Amazon Connect Instance"]
+            
+            tdg_west --> sip_connector_west
+            sip_connector_west --> connect_west
+        end
+        
+        subgraph Central["US-Central-1"]
+            tdg_central["Traffic Distribution Group"]
+            sip_connector_central["SIP Connector"]
+            connect_central["Amazon Connect Instance"]
+            
+            tdg_central --> sip_connector_central
+            sip_connector_central --> connect_central
+        end
+    end
+
+    subgraph DataSources["Configuration Data"]
+        dynamo["DynamoDB\nGlobal Tables"]
+        lambda["Lambda Functions"]
+        
+        dynamo <--> lambda
+    end
+
+    %% Connections between major components
+    carrier1 --> sbc1 & sbc2
+    carrier2 --> sbc1 & sbc2
+    carrier3 --> sbc1 & sbc2
+    
+    sbc1 & sbc2 --> gcr
+    
+    gw_east --> tdg_east
+    gw_west --> tdg_west
+    gw_central --> tdg_central
+    
+    lambda --> SBCLogic
+    lambda --> gcr
+    
+    %% Add call flow example
+    Customer((Customer)) --> |"Calls +1-800-555-0100"| carrier1
+    
+    %% Styling
+    classDef carrierNode fill:#FFB366,stroke:#FF9900,color:black
+    classDef sbcNode fill:#66B2FF,stroke:#0066CC,color:black
+    classDef gcpNode fill:#4285F4,stroke:#4285F4,color:white
+    classDef awsNode fill:#FF9900,stroke:#FF9900,color:white
+    classDef dataNode fill:#34A853,stroke:#34A853,color:white
+    classDef customerNode fill:#EA4335,stroke:#EA4335,color:white
+    
+    class carrier1,carrier2,carrier3 carrierNode
+    class sbc1,sbc2,SBCLogic,phone_map,gateway_select,failover sbcNode
+    class gcr,gw_east,gw_west,gw_central,IPGateways gcpNode
+    class tdg_east,tdg_west,tdg_central,sip_connector_east,sip_connector_west,sip_connector_central,connect_east,connect_west,connect_central awsNode
+    class dynamo,lambda dataNode
+    class Customer customerNode
+```
 ### Core Infrastructure
 - **Session Border Controllers (SBCs)**: Acts as the entry point for all inbound voice traffic
 - **Google Cloud Router**: Provides centralized routing management across cloud environments
