@@ -5,7 +5,76 @@
 This document details our hybrid AWS-GCP architecture that enables true active-active operations with 50/50 traffic distribution between Amazon Connect instances. This architecture leverages the strengths of both cloud platforms to create a robust, resilient contact center solution with complete interoperability, ensuring optimal resource utilization and seamless customer experiences.
 
 ## Architecture Highlights
+```mermaid
+flowchart TB
+    subgraph GCP["GCP Central Hub"]
+        cr[Cloud Router]
+        ps[Pub/Sub]
+        mon[Operations Suite]
+    end
 
+    subgraph AWS_A["AWS Region A"]
+        tgw_a[Transit Gateway]
+        r53_a[Route 53]
+        connect_a[Amazon Connect]
+        tdg_a[Traffic Distribution Group]
+        dynamo_a[DynamoDB]
+        lambda_a[Lambda Functions]
+        cw_a[CloudWatch]
+        
+        tgw_a --> connect_a
+        connect_a --> tdg_a
+        connect_a --> dynamo_a
+        lambda_a --> dynamo_a
+    end
+
+    subgraph AWS_B["AWS Region B"]
+        tgw_b[Transit Gateway]
+        r53_b[Route 53]
+        connect_b[Amazon Connect]
+        tdg_b[Traffic Distribution Group]
+        dynamo_b[DynamoDB]
+        lambda_b[Lambda Functions]
+        cw_b[CloudWatch]
+        
+        tgw_b --> connect_b
+        connect_b --> tdg_b
+        connect_b --> dynamo_b
+        lambda_b --> dynamo_b
+    end
+    
+    %% Cross-cloud connections
+    cr <--> tgw_a
+    cr <--> tgw_b
+    
+    %% Data synchronization
+    dynamo_a <--> dynamo_b
+    ps <--> lambda_a
+    ps <--> lambda_b
+    
+    %% Monitoring
+    mon --> cw_a
+    mon --> cw_b
+    
+    %% DNS and Traffic Management
+    Internet((Internet)) --> r53_a
+    Internet --> r53_b
+    r53_a --> tdg_a
+    r53_b --> tdg_b
+    
+    %% Customer and Agent connections
+    Customer((Customer)) --> Internet
+    Agent((Agent)) --> Internet
+    
+    %% Styling
+    classDef gcpNode fill:#4285F4,stroke:#4285F4,color:white
+    classDef awsNode fill:#FF9900,stroke:#FF9900,color:white
+    classDef userNode fill:#34A853,stroke:#34A853,color:white
+    
+    class cr,ps,mon gcpNode
+    class tgw_a,r53_a,connect_a,tdg_a,dynamo_a,lambda_a,cw_a,tgw_b,r53_b,connect_b,tdg_b,dynamo_b,lambda_b,cw_b awsNode
+    class Customer,Agent,Internet userNode
+```
 ### Core Components
 - **Amazon Connect Instances**: Deployed in multiple AWS regions
 - **GCP as Central Routing Hub**: Acts as the neutral orchestration layer
