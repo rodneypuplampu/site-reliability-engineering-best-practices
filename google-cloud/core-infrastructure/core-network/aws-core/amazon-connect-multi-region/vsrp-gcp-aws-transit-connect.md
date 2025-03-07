@@ -16,73 +16,76 @@ This architecture provides an Active-Active/Active-Passive (depending on the tra
 
 ## 2. Architecture Diagram
 
-                                 +---------------------+
-                                 |     On-Premises     |
-                                 |  Network (Customer) |
-                                 +--------+----------+
-                                          |  VRRP
-                                 +--------+----------+
-                                 |  Routers (Pair)   |
-                                 +--------+----------+
-                                    |          |
-            +-----------------------+          +-----------------------+
-            |                       |          |                       |
-            |  Direct Connect       |          |       VPN Tunnel       |
-            |                       |          |                       |
-            +--------+--------------+          +----------+------------+
-                     |                                   |
-                     |                                   |
-   +-----------------+-----------------+    +------------+-------------+
-   |            AWS Region 1           |    |             GCP          |
-   |             (Primary)              |    |                          |
-   +-----------------+-----------------+    +------------+-------------+
-   |                 |                 |    |     Cloud Router      |
-   | +---------------+---------------+ |    |  (Dynamic BGP Routing)|
-   | |     Amazon    |  Kinesis      | |    +------------+-------------+
-   | |    Connect    | Data Streams  | |                 |
-   | |   Instance    |--------------->| |                 |
-   | +---------------+---------------+ |    +------------+-------------+
-   |                 |                 |    |      VPN Gateway       |
-   | +---------------+---------------+ |    +------------+-------------+
-   | |    DynamoDB   |                 |                 |
-   | |  Global Table |                 |  <--------------+
-   | +---------------+---------------+ |
-   |                 |                 |
-   |      Transit Gateway (TGW)        |
-   |                 ^                 |
-   |                 |                 |
-   +--------+--------+--------+--------+
-            |                 |
-            |  BGP            |
-   +--------v--------+--------v--------+
-   |            AWS Region 2           |
-   |            (Secondary)          |
-   +-----------------+-----------------+
-   |                 |                 |
-   | +---------------+---------------+ |
-   | |     Amazon    |  Kinesis      | |
-   | |    Connect    | Data Streams  | |
-   | |   Instance    |  <-------------| |
-   | +---------------+---------------+ |
-   |                 |                 |
-   | +---------------+---------------+ |
-   | |    DynamoDB   |                 |
-   | |  Global Table |                 |
-   | +---------------+---------------+ |
-   |                 |                 |
-   |       Transit Gateway (TGW)       |
-   +-----------------+-----------------+
-                     |
-                     |
-                     |
-          +----------v----------+
-          | Traffic Distribution|
-          |       Group         |
-          +---------------------+
-                     |
-          +----------v----------+
-          |      Clients       |
-          +---------------------+
+```mermaid
+graph TD
+    subgraph OnPrem["On-Premises Network (Customer)"]
+        Router["Routers (Pair) with VRRP"]
+    end
+    
+    subgraph AWSR1["AWS Region 1 (Primary)"]
+        Connect1["Amazon Connect Instance"]
+        Kinesis1["Kinesis Data Streams"]
+        DynamoDB1["DynamoDB Global Table"]
+        TGW1["Transit Gateway (TGW)"]
+    end
+    
+    subgraph AWSR2["AWS Region 2 (Secondary)"]
+        Connect2["Amazon Connect Instance"]
+        Kinesis2["Kinesis Data Streams"]
+        DynamoDB2["DynamoDB Global Table"]
+        TGW2["Transit Gateway (TGW)"]
+    end
+    
+    subgraph GCP["Google Cloud Platform"]
+        CloudRouter["Cloud Router (Dynamic BGP Routing)"]
+        VPNGateway["VPN Gateway"]
+    end
+    
+    DC["Direct Connect"]
+    VPN["VPN Tunnel"]
+    TDG["Traffic Distribution Group"]
+    Clients["Clients"]
+    
+    %% Connections
+    Router -- "VRRP" --> Router
+    Router -- "Primary Path" --> DC
+    Router -- "Backup Path" --> VPN
+    
+    DC --> TGW1
+    VPN --> CloudRouter
+    CloudRouter --> VPNGateway
+    VPNGateway --> TGW1
+    
+    Connect1 --> Kinesis1
+    Kinesis1 --"Data Replication"--> Kinesis2
+    Kinesis2 --> Connect2
+    
+    Connect1 --- DynamoDB1
+    Connect2 --- DynamoDB2
+    DynamoDB1 <--"Replication"--> DynamoDB2
+    
+    TGW1 <--"BGP"--> TGW2
+    
+    TDG --> Clients
+    TGW2 --> TDG
+    
+    %% Styling
+    classDef aws fill:#FF9900,stroke:#232F3E,color:white
+    classDef gcp fill:#4285F4,stroke:#3367D6,color:white
+    classDef onprem fill:#B7BEC7,stroke:#6A737D,color:black
+    classDef network fill:#E6F7FF,stroke:#1890FF,color:black
+    
+    class Connect1,Connect2,Kinesis1,Kinesis2,DynamoDB1,DynamoDB2,TGW1,TGW2 aws
+    class CloudRouter,VPNGateway gcp
+    class Router onprem
+    class DC,VPN,TDG,Clients network
+    
+    %% Group styling
+    style AWSR1 fill:#F8F4E8,stroke:#FF9900
+    style AWSR2 fill:#F8F4E8,stroke:#FF9900
+    style GCP fill:#E8F0FE,stroke:#4285F4
+    style OnPrem fill:#F0F2F5,stroke:#6A737D
+```
 
 ## 3. Components
 
